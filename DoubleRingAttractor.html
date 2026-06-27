@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Double Ring Attractor</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; height: 100vh; overflow: hidden; font-size: 16px; }
+#controls { width: 555px; min-width: 220px; flex-shrink: 0; background: #161b22; border-right: 1px solid #30363d; padding: 12px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+#resizer { flex: 0 0 6px; cursor: col-resize; background: #30363d; transition: background 0.15s; }
+#resizer:hover, #resizer.dragging { background: #58a6ff; }
+body.resizing { cursor: col-resize; user-select: none; }
+#plots { flex: 1; display: flex; flex-direction: row; padding: 6px 6px 6px 8px; gap: 8px; overflow: hidden; background: #0d1117; }
+#plots-left { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: hidden; flex: 1; min-width: 0; }
+.plot-wrap { flex: 1; position: relative; min-height: 0; }
+#rate-2d-A, #rate-2d-B { gap: 12px; align-items: center; justify-content: center; }
+.hm-row { display: flex; flex-direction: row; gap: 6px; min-height: 0; height: 100%; align-items: center; justify-content: center; }
+.hm { position: relative; height: 100%; aspect-ratio: 1 / 1; }
+.hm canvas { width: 100%; height: 100%; display: block; background: #0d1117; image-rendering: pixelated; border: 1px solid #21262d; }
+.hm-lbl { position: absolute; top: 2px; left: 4px; font-size: 11px; color: #e6edf3; pointer-events: none; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+.dimseg { display: inline-flex; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
+.dimbtn { background: #21262d; color: #8b949e; border: none; padding: 3px 11px; font-size: 13px; cursor: pointer; line-height: 1.3; }
+.dimbtn + .dimbtn { border-left: 1px solid #30363d; }
+.dimbtn.active { background: #238636; color: #fff; }
+#startstop { width: 100%; padding: 9px 0; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; letter-spacing: 0.04em; transition: background 0.15s, color 0.15s; }
+#startstop.running { background: #b91c1c; color: #fecaca; }
+#startstop.stopped { background: #15803d; color: #bbf7d0; }
+.sec-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #58a6ff; border-bottom: 1px solid #21262d; padding-bottom: 4px; margin-bottom: 8px; }
+.ctrl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.lbl { color: #8b949e; white-space: nowrap; min-width: 70px; font-size: 15px; }
+input[type=range] { flex: 1; height: 4px; -webkit-appearance: none; appearance: none; background: #21262d; border-radius: 2px; outline: none; cursor: pointer; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #58a6ff; cursor: pointer; }
+.sval { font-size: 13px; color: #6e7681; min-width: 42px; text-align: right; }
+.tog { position: relative; display: inline-block; width: 32px; height: 18px; }
+.tog input { opacity: 0; width: 0; height: 0; }
+.tog-track { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #21262d; border-radius: 18px; transition: .2s; }
+.tog-track::before { content: ''; position: absolute; width: 12px; height: 12px; left: 3px; bottom: 3px; background: #6e7681; border-radius: 50%; transition: .2s; }
+input:checked ~ .tog-track { background: #238636; }
+input:checked ~ .tog-track::before { transform: translateX(14px); background: #3fb950; }
+.wt { width: 100%; border-collapse: collapse; }
+.wt th { font-size: 12px; color: #6e7681; text-align: center; padding: 2px 2px 5px; font-weight: 400; }
+.wt th:first-child { text-align: left; }
+.wt td { padding: 4px 3px; vertical-align: middle; }
+.wt td:first-child { font-size: 14px; color: #8b949e; white-space: nowrap; padding-right: 6px; }
+.wt td input[type=range] { width: 100%; min-width: 50px; }
+.wt .sval { min-width: 36px; font-size: 12px; }
+#n_val, #beta_E_val, #beta_I_val, #amp_a_val, #tau_a_val { min-width: 36px; font-size: 12px; }
+input[type=text]#preset_name { flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; padding: 6px 8px; font-size: 14px; outline: none; }
+input[type=text]#preset_name:focus { border-color: #58a6ff; }
+.preset-row { display: flex; gap: 4px; margin-bottom: 4px; }
+.preset-btn { flex: 1; padding: 6px 10px; border: 1px solid #30363d; border-radius: 4px; background: #21262d; color: #c9d1d9; font-size: 14px; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preset-btn:hover { background: #30363d; }
+.preset-del { width: 30px; padding: 0; border: 1px solid #30363d; border-radius: 4px; background: #21262d; color: #8b949e; font-size: 14px; cursor: pointer; line-height: 1; }
+.preset-del:hover { background: #b91c1c; color: #fecaca; border-color: #b91c1c; }
+.preset-action { flex: 1; padding: 6px 10px; border: 1px solid #30363d; border-radius: 4px; background: #21262d; color: #8b949e; font-size: 13px; cursor: pointer; }
+.preset-action:hover { background: #30363d; color: #c9d1d9; }
+.trace-btn { background:#21262d; color:#8b949e; border:1px solid #30363d; border-radius:4px; padding:2px 6px; font-size:11px; cursor:pointer; line-height:1.4; }
+.trace-btn:hover { background:#30363d; }
+.trace-btn.active { background:#238636; color:#fff; border-color:#238636; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <button id="startstop" class="stopped">Start</button>
+
+  <div class="ctrl-row">
+    <span class="lbl" style="min-width:auto">Spiking</span>
+    <label class="tog"><input type="checkbox" id="use_spiking" checked><span class="tog-track"></span></label>
+    <span class="lbl" style="min-width:auto; margin-left:12px">Neurons</span>
+    <input type="range" id="n_exp" min="3" max="10" step="1" value="7" style="min-width:50px">
+    <span class="sval" id="n_val">128</span>
+    <span class="lbl" style="min-width:auto; margin-left:12px">Dim</span>
+    <div class="dimseg" id="dimseg">
+      <button type="button" class="dimbtn active" data-dim="1">1D</button>
+      <button type="button" class="dimbtn" data-dim="2">2D</button>
+    </div>
+    <span class="lbl" style="min-width:auto; margin-left:12px">Slow</span>
+    <label class="tog"><input type="checkbox" id="slow_speed"><span class="tog-track"></span></label>
+  </div>
+
+  <div>
+    <div class="sec-title">Within-ring Weights</div>
+    <table class="wt">
+      <thead><tr><th></th><th colspan="2">Width</th><th colspan="2">Amplitude</th><th>Invert</th><th>Binarize</th></tr></thead>
+      <tbody id="wtbody"></tbody>
+    </table>
+    <div class="ctrl-row" style="margin-top: 6px;">
+      <span class="lbl">envelope</span>
+      <input type="range" id="sig_env" min="0" max="1" step="0.001" value="1.000">
+      <span class="sval" id="sig_env_v">10.0</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Cross-ring Weights</div>
+    <table class="wt">
+      <thead><tr><th></th><th colspan="2">Width</th><th colspan="2">Amplitude</th><th>Invert</th><th>Binarize</th></tr></thead>
+      <tbody id="wtbody_cross"></tbody>
+    </table>
+    <div class="ctrl-row" style="margin-top: 6px;">
+      <span class="lbl">envelope</span>
+      <input type="range" id="sig_env_cross" min="0" max="1" step="0.001" value="1.000">
+      <span class="sval" id="sig_env_cross_v">10.0</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Uniform Input</div>
+    <div class="ctrl-row">
+      <span class="lbl" style="min-width:auto">β_E</span>
+      <input type="range" id="beta_E" min="0" max="1000" step="1" value="400" style="min-width:50px">
+      <span class="sval" id="beta_E_val">400</span>
+      <span class="lbl" style="min-width:auto; margin-left:12px">β_I</span>
+      <input type="range" id="beta_I" min="0" max="1000" step="1" value="0" style="min-width:50px">
+      <span class="sval" id="beta_I_val">0</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Velocity Gain</div>
+    <div class="ctrl-row">
+      <span class="lbl" style="min-width:auto">β_vel</span>
+      <input type="range" id="beta_vel" min="0" max="10" step="0.1" value="0" style="min-width:50px">
+      <span class="sval" id="beta_vel_val">0.00</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Adaptation</div>
+    <div class="ctrl-row">
+      <label class="tog"><input type="checkbox" id="use_adapt"><span class="tog-track"></span></label>
+      <span class="lbl" style="min-width:auto; margin-left:8px; font-size:12px">Amplitude</span>
+      <input type="range" id="amp_a" min="0" max="20" step="0.1" value="1" style="min-width:50px">
+      <span class="sval" id="amp_a_val" style="min-width:auto">1</span>
+      <span class="lbl" style="min-width:auto; margin-left:12px; font-size:12px">Time constant (s)</span>
+      <input type="range" id="tau_a" min="0.1" max="6" step="0.1" value="3" style="min-width:50px">
+      <span class="sval" id="tau_a_val" style="min-width:auto">3.0</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Resetting</div>
+    <div class="ctrl-row">
+      <label class="tog"><input type="checkbox" id="use_reset"><span class="tog-track"></span></label>
+      <span class="lbl" style="min-width:auto; margin-left:8px; font-size:12px">Width</span>
+      <input type="range" id="pulse_sig" min="0.01" max="0.1" step="0.005" value="0.0625" style="min-width:50px">
+      <span class="sval" id="pulse_sig_val" style="min-width:auto">0.063</span>
+      <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Amplitude</span>
+      <input type="range" id="pulse_amp" min="0" max="1000" step="10" value="500" style="min-width:50px">
+      <span class="sval" id="pulse_amp_val" style="min-width:auto">500</span>
+    </div>
+    <div class="ctrl-row" style="margin-left: 40px;">
+      <span class="lbl" style="min-width:auto; font-size:12px">Silence (ms)</span>
+      <input type="range" id="silence_dur" min="0" max="200" step="50" value="200" style="min-width:50px">
+      <span class="sval" id="silence_dur_val" style="min-width:auto">200</span>
+      <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Duration (ms)</span>
+      <input type="range" id="pulse_dur" min="0.1" max="200" step="0.1" value="50" style="min-width:50px">
+      <span class="sval" id="pulse_dur_val" style="min-width:auto">50</span>
+      <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Interval (s)</span>
+      <input type="range" id="t_reset" min="0" max="5" step="0.1" value="5" style="min-width:50px">
+      <span class="sval" id="t_reset_val" style="min-width:auto">5.0</span>
+    </div>
+    <div class="ctrl-row" style="margin-left: 40px;">
+      <span class="lbl" style="min-width:auto; font-size:12px">Velocity (ring/s)</span>
+      <input type="range" id="pulse_vel" min="-0.2" max="0.2" step="0.005" value="0" style="min-width:50px">
+      <span class="sval" id="pulse_vel_val" style="min-width:auto">0.00</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Input Traces</div>
+    <div class="ctrl-row" id="trace_row_A" style="flex-wrap:wrap; gap:4px;">
+      <span class="lbl" style="min-width:14px">A</span>
+    </div>
+    <div class="ctrl-row" id="trace_row_B" style="flex-wrap:wrap; gap:4px;">
+      <span class="lbl" style="min-width:14px">B</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title" id="presets_title" title="">Presets</div>
+    <div class="preset-row">
+      <input type="text" id="preset_name" placeholder="preset name">
+      <button id="preset_save" class="preset-del" style="width:auto; padding:0 12px;">Save</button>
+    </div>
+    <div id="preset_list"></div>
+    <div id="preset_status" style="font-size:12px; color:#6e7681; min-height:14px;"></div>
+  </div>
+</div>
+
+<div id="resizer"></div>
+
+<div id="plots">
+  <div id="plots-left">
+    <div class="plot-wrap" id="weights-wrap"><canvas id="c1"></canvas></div>
+    <div class="plot-wrap" id="rate-wrap-A">
+      <canvas id="c2_A"></canvas>
+      <div id="rate-2d-A" class="hm-row" style="display:none">
+        <div class="hm"><canvas id="hm_EA"></canvas><span class="hm-lbl">A: E</span></div>
+        <div class="hm"><canvas id="hm_IA"></canvas><span class="hm-lbl">A: I</span></div>
+      </div>
+    </div>
+    <div class="plot-wrap" id="rate-wrap-B">
+      <canvas id="c2_B"></canvas>
+      <div id="rate-2d-B" class="hm-row" style="display:none">
+        <div class="hm"><canvas id="hm_EB"></canvas><span class="hm-lbl">B: E</span></div>
+        <div class="hm"><canvas id="hm_IB"></canvas><span class="hm-lbl">B: I</span></div>
+      </div>
+    </div>
+    <div class="plot-wrap" id="inputs-wrap"><canvas id="c4"></canvas></div>
+    <div class="plot-wrap" id="inputs-wrap-B"><canvas id="c5"></canvas></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script id="worker-src" type="text/plain">
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len;
+    const wRe = Math.cos(ang), wIm = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cRe = 1, cIm = 0;
+      for (let k = 0; k < (len >> 1); k++) {
+        const p = i + k, q = p + (len >> 1);
+        const uRe = re[p], uIm = im[p];
+        const vRe = re[q]*cRe - im[q]*cIm;
+        const vIm = re[q]*cIm + im[q]*cRe;
+        re[p] = uRe+vRe; im[p] = uIm+vIm;
+        re[q] = uRe-vRe; im[q] = uIm-vIm;
+        const nr = cRe*wRe - cIm*wIm;
+        cIm = cRe*wIm + cIm*wRe; cRe = nr;
+      }
+    }
+  }
+}
+function ifft(re, im) {
+  const n = im.length;
+  for (let i = 0; i < n; i++) im[i] = -im[i];
+  fft(re, im);
+  for (let i = 0; i < n; i++) { re[i] /= n; im[i] = -im[i] / n; }
+}
+function fftshift(arr) {
+  const n = arr.length, s = Math.floor(n / 2);
+  const r = new Float64Array(n);
+  for (let i = 0; i < n - s; i++) r[i] = arr[i + s];
+  for (let i = 0; i < s; i++) r[n - s + i] = arr[i];
+  return r;
+}
+
+let ftBufRe = null, ftBufIm = null;
+function fft2(re, im, L) {
+  for (let y = 0; y < L; y++) {
+    const off = y * L;
+    for (let x = 0; x < L; x++) { ftBufRe[x] = re[off+x]; ftBufIm[x] = im[off+x]; }
+    fft(ftBufRe, ftBufIm);
+    for (let x = 0; x < L; x++) { re[off+x] = ftBufRe[x]; im[off+x] = ftBufIm[x]; }
+  }
+  for (let x = 0; x < L; x++) {
+    for (let y = 0; y < L; y++) { ftBufRe[y] = re[y*L+x]; ftBufIm[y] = im[y*L+x]; }
+    fft(ftBufRe, ftBufIm);
+    for (let y = 0; y < L; y++) { re[y*L+x] = ftBufRe[y]; im[y*L+x] = ftBufIm[y]; }
+  }
+}
+function ifft2(re, im, L) {
+  const M = L * L;
+  for (let k = 0; k < M; k++) im[k] = -im[k];
+  fft2(re, im, L);
+  for (let k = 0; k < M; k++) { re[k] /= M; im[k] = -im[k] / M; }
+}
+function fftshift2(arr, L) {
+  const s = Math.floor(L / 2);
+  const r = new Float64Array(L * L);
+  for (let y = 0; y < L; y++) {
+    const yy = (y + s) % L;
+    for (let x = 0; x < L; x++) r[y*L+x] = arr[yy*L+((x+s)%L)];
+  }
+  return r;
+}
+
+let N = 0, params = null;
+let D = 1, L = 0;
+let r_EA = null, r_IA = null, r_EB = null, r_IB = null;
+let wFT = {}, wFT_cross = {};
+let wkRe, wkIm;
+let g_EE_A, g_IE_A, g_EI_A, g_II_A;
+let g_EE_B, g_IE_B, g_EI_B, g_II_B;
+let cx_EE_A, cx_IE_A, cx_EI_A, cx_II_A;
+let cx_EE_B, cx_IE_B, cx_EI_B, cx_II_B;
+let G_EA, G_IA, G_EB, G_IB;
+let a_EA, a_EB, g_adapt_A, g_adapt_B;
+let pulseBlob;
+let pulsePos = 0.5;
+let resetElapsed = 0, silenceRemaining = 0, pulseRemaining = 0;
+let running = false, pendingParams = null, paramsDirty = false;
+
+const dt = 0.5 / 1000;
+const tau_s = 30 / 1000;
+const STEPS_PER_TICK = 200;
+const STEPS_2D = 20;
+const SILENCE_DUR = 0.5;
+const PULSE_DUR = 0.050;
+const PULSE_AMP = 5000;
+const PULSE_SIG_FRAC = 1/16;
+
+function makeWeightVec(n, sig, amp, inv, bin) {
+  const w = new Float64Array(n);
+  const ctr = (Math.floor(n/2)+1)/n;
+  let mx = 0;
+  for (let i = 0; i < n; i++) {
+    const d = ((i+1)/n - ctr) / sig;
+    w[i] = Math.exp(-0.5*d*d);
+    if (w[i] > mx) mx = w[i];
+  }
+  for (let i = 0; i < n; i++) {
+    w[i] /= mx;
+    if (inv) w[i] = 1 - w[i];
+    if (bin) w[i] = w[i] >= 0.5 ? 1 : 0;
+    w[i] *= amp;
+  }
+  return w;
+}
+function computeWeightFT(w) {
+  const n = w.length;
+  const ws = fftshift(w);
+  const re = new Float64Array(ws), im = new Float64Array(n);
+  fft(re, im);
+  return { re, im };
+}
+function makeWeightVec2D(L, sig, amp, inv, bin) {
+  const w = new Float64Array(L*L);
+  const ctr = (Math.floor(L/2)+1)/L;
+  let mx = 0;
+  for (let y = 0; y < L; y++) {
+    const py = (y+1)/L - ctr;
+    for (let x = 0; x < L; x++) {
+      const px = (x+1)/L - ctr;
+      const v = Math.exp(-0.5*(px*px+py*py)/(sig*sig));
+      w[y*L+x] = v;
+      if (v > mx) mx = v;
+    }
+  }
+  for (let k = 0; k < w.length; k++) {
+    w[k] /= mx;
+    if (inv) w[k] = 1 - w[k];
+    if (bin) w[k] = w[k] >= 0.5 ? 1 : 0;
+    w[k] *= amp;
+  }
+  return w;
+}
+function computeWeightFT2(w, L) {
+  const ws = fftshift2(w, L);
+  const re = new Float64Array(ws), im = new Float64Array(L*L);
+  fft2(re, im, L);
+  return { re, im };
+}
+
+function initWeights(p) {
+  const crossMap = [['EE','cEE'],['EI','cEI'],['IE','cIE'],['II','cII']];
+  if (D === 2) {
+    const env = makeWeightVec2D(L, p.sig_env, 1.0, false, false);
+    for (const nm of ['EE','EI','IE','II']) {
+      const vec = makeWeightVec2D(L, p['sig_'+nm], p['amp_'+nm], p['inv_'+nm], p['bin_'+nm]);
+      for (let k = 0; k < vec.length; k++) vec[k] *= env[k];
+      const ft = computeWeightFT2(vec, L);
+      wFT[nm] = { re: ft.re, im: ft.im, vec };
+    }
+    const envc = makeWeightVec2D(L, p.sig_env_cross, 1.0, false, false);
+    for (const [nm, pid] of crossMap) {
+      const vec = makeWeightVec2D(L, p['sig_'+pid], p['amp_'+pid], p['inv_'+pid], p['bin_'+pid]);
+      for (let k = 0; k < vec.length; k++) vec[k] *= envc[k];
+      const ft = computeWeightFT2(vec, L);
+      wFT_cross[nm] = { re: ft.re, im: ft.im, vec };
+    }
+  } else {
+    const env = makeWeightVec(N, p.sig_env, 1.0, false, false);
+    for (const nm of ['EE','EI','IE','II']) {
+      const vec = makeWeightVec(N, p['sig_'+nm], p['amp_'+nm], p['inv_'+nm], p['bin_'+nm]);
+      for (let i = 0; i < N; i++) vec[i] *= env[i];
+      const ft = computeWeightFT(vec);
+      wFT[nm] = { re: ft.re, im: ft.im, vec };
+    }
+    const envc = makeWeightVec(N, p.sig_env_cross, 1.0, false, false);
+    for (const [nm, pid] of crossMap) {
+      const vec = makeWeightVec(N, p['sig_'+pid], p['amp_'+pid], p['inv_'+pid], p['bin_'+pid]);
+      for (let i = 0; i < N; i++) vec[i] *= envc[i];
+      const ft = computeWeightFT(vec);
+      wFT_cross[nm] = { re: ft.re, im: ft.im, vec };
+    }
+  }
+}
+
+function buildPulseBlob() {
+  if (!pulseBlob) return;
+  const amp = params ? params.pulse_amp : PULSE_AMP;
+  const sigFrac = params ? params.pulse_sig_frac : PULSE_SIG_FRAC;
+  const pos = ((pulsePos % 1) + 1) % 1;
+  if (D === 2) {
+    const cx = Math.floor(L / 2);
+    const cy = Math.round(pos * L);
+    const sig = Math.max(1, L * sigFrac);
+    for (let y = 0; y < L; y++) {
+      let dy = y - cy;
+      if (dy > L/2) dy -= L; if (dy < -L/2) dy += L;
+      for (let x = 0; x < L; x++) {
+        let dx = x - cx;
+        if (dx > L/2) dx -= L; if (dx < -L/2) dx += L;
+        pulseBlob[y*L+x] = amp * Math.exp(-0.5*(dx*dx+dy*dy)/(sig*sig));
+      }
+    }
+  } else {
+    const center = Math.round(pos * N);
+    const sig = Math.max(1, N * sigFrac);
+    for (let i = 0; i < N; i++) {
+      let d = i - center;
+      if (d > N/2) d -= N; if (d < -N/2) d += N;
+      pulseBlob[i] = amp * Math.exp(-0.5*(d/sig)*(d/sig));
+    }
+  }
+}
+
+function allocBuffers(n) {
+  wkRe = new Float64Array(n); wkIm = new Float64Array(n);
+  g_EE_A = new Float64Array(n); g_IE_A = new Float64Array(n);
+  g_EI_A = new Float64Array(n); g_II_A = new Float64Array(n);
+  g_EE_B = new Float64Array(n); g_IE_B = new Float64Array(n);
+  g_EI_B = new Float64Array(n); g_II_B = new Float64Array(n);
+  cx_EE_A = new Float64Array(n); cx_IE_A = new Float64Array(n);
+  cx_EI_A = new Float64Array(n); cx_II_A = new Float64Array(n);
+  cx_EE_B = new Float64Array(n); cx_IE_B = new Float64Array(n);
+  cx_EI_B = new Float64Array(n); cx_II_B = new Float64Array(n);
+  G_EA = new Float64Array(n); G_IA = new Float64Array(n);
+  G_EB = new Float64Array(n); G_IB = new Float64Array(n);
+  r_EA = new Float64Array(n); r_IA = new Float64Array(n);
+  r_EB = new Float64Array(n); r_IB = new Float64Array(n);
+  a_EA = new Float64Array(n); a_EB = new Float64Array(n);
+  g_adapt_A = new Float64Array(n); g_adapt_B = new Float64Array(n);
+  pulseBlob = new Float64Array(n);
+  if (D === 2) {
+    const c = Math.floor(L / 2);
+    r_EA[c*L+c] = 1; r_EB[c*L+c] = 1;
+  } else {
+    const c = Math.floor(n / 2);
+    r_EA[Math.max(0,c-1)] = 1; r_EB[Math.max(0,c-1)] = 1;
+  }
+  pulsePos = 0.5;
+  buildPulseBlob();
+  resetElapsed = 0;
+  silenceRemaining = params ? params.silence_dur : SILENCE_DUR;
+  pulseRemaining = params ? params.pulse_dur : PULSE_DUR;
+}
+
+function applyParams(p) {
+  const dims = p.dims || 1;
+  let side, newN;
+  if (dims === 2) { side = Math.min(p.n, 128); newN = side * side; }
+  else            { side = p.n; newN = side; }
+  const resize = newN !== N || dims !== D;
+  D = dims; L = side; N = newN;
+  if (D === 2) { ftBufRe = new Float64Array(L); ftBufIm = new Float64Array(L); }
+  params = p;
+  initWeights(p);
+  if (resize || r_EA === null) allocBuffers(N);
+  else buildPulseBlob();
+}
+
+function circConvInto(sig, kRe, kIm, out) {
+  out.set(sig); wkIm.fill(0);
+  fft(out, wkIm);
+  for (let i = 0; i < N; i++) {
+    const a=out[i], b=wkIm[i], c=kRe[i], d=kIm[i];
+    out[i]=a*c-b*d; wkIm[i]=a*d+b*c;
+  }
+  ifft(out, wkIm);
+}
+function circConvInto2D(sig, kRe, kIm, out) {
+  out.set(sig); wkIm.fill(0);
+  fft2(out, wkIm, L);
+  for (let i = 0; i < N; i++) {
+    const a=out[i], b=wkIm[i], c=kRe[i], d=kIm[i];
+    out[i]=a*c-b*d; wkIm[i]=a*d+b*c;
+  }
+  ifft2(out, wkIm, L);
+}
+
+function poissonSample(lam) {
+  if (lam <= 0) return 0;
+  if (lam > 20) {
+    const u = Math.random(), v = Math.random();
+    const z = Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+    return Math.max(0, Math.round(lam + Math.sqrt(lam)*z));
+  }
+  const L2 = Math.exp(-lam); let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L2);
+  return k - 1;
+}
+
+function tick() {
+  if (!running) return;
+  if (paramsDirty && pendingParams) {
+    applyParams(pendingParams); pendingParams = null; paramsDirty = false;
+  }
+  if (!r_EA) { setTimeout(tick, 10); return; }
+
+  const sp = params.spiking;
+  const adaptOn = params.adapt, wa = params.w_a, tauA = params.tau_a;
+  const resetOn = params.reset, tReset = params.t_reset;
+  const velocity = params.velocity || 0;
+  const conv = D === 2 ? circConvInto2D : circConvInto;
+  const baseSteps = D === 2 ? STEPS_2D : STEPS_PER_TICK;
+  const steps = Math.max(1, Math.round(baseSteps * (params.speed || 1)));
+
+  for (let s = 0; s < steps; s++) {
+    if (resetOn) {
+      resetElapsed += dt;
+      if (resetElapsed >= tReset) {
+        if (velocity === 0) pulsePos = 0.5;          // no drift: always reset at the middle
+        else pulsePos += velocity * resetElapsed;   // use actual elapsed time (works when interval=0)
+        buildPulseBlob();
+        silenceRemaining = params.silence_dur;
+        pulseRemaining = params.pulse_dur;
+        resetElapsed = 0;
+      }
+    }
+
+    if (silenceRemaining > 0) {
+      silenceRemaining -= dt;
+      for (let i = 0; i < N; i++) {
+        r_EA[i]=0; r_IA[i]=0; r_EB[i]=0; r_IB[i]=0;
+        g_EE_A[i]=0; g_IE_A[i]=0; g_EI_A[i]=0; g_II_A[i]=0;
+        g_EE_B[i]=0; g_IE_B[i]=0; g_EI_B[i]=0; g_II_B[i]=0;
+        cx_EE_A[i]=0; cx_IE_A[i]=0; cx_EI_A[i]=0; cx_II_A[i]=0;
+        cx_EE_B[i]=0; cx_IE_B[i]=0; cx_EI_B[i]=0; cx_II_B[i]=0;
+        G_EA[i]=0; G_IA[i]=0; G_EB[i]=0; G_IB[i]=0;
+        if (adaptOn) {
+          a_EA[i] -= a_EA[i]*dt/tauA;
+          a_EB[i] -= a_EB[i]*dt/tauA;
+        }
+      }
+      continue;
+    }
+
+    const pulsing = pulseRemaining > 0;
+
+    // Within-ring A
+    conv(r_EA, wFT.EE.re, wFT.EE.im, g_EE_A);
+    conv(r_EA, wFT.IE.re, wFT.IE.im, g_IE_A);
+    conv(r_IA, wFT.EI.re, wFT.EI.im, g_EI_A);
+    conv(r_IA, wFT.II.re, wFT.II.im, g_II_A);
+    // Within-ring B
+    conv(r_EB, wFT.EE.re, wFT.EE.im, g_EE_B);
+    conv(r_EB, wFT.IE.re, wFT.IE.im, g_IE_B);
+    conv(r_IB, wFT.EI.re, wFT.EI.im, g_EI_B);
+    conv(r_IB, wFT.II.re, wFT.II.im, g_II_B);
+    // Cross B → A
+    conv(r_EB, wFT_cross.EE.re, wFT_cross.EE.im, cx_EE_A);
+    conv(r_EB, wFT_cross.IE.re, wFT_cross.IE.im, cx_IE_A);
+    conv(r_IB, wFT_cross.EI.re, wFT_cross.EI.im, cx_EI_A);
+    conv(r_IB, wFT_cross.II.re, wFT_cross.II.im, cx_II_A);
+    // Cross A → B
+    conv(r_EA, wFT_cross.EE.re, wFT_cross.EE.im, cx_EE_B);
+    conv(r_EA, wFT_cross.IE.re, wFT_cross.IE.im, cx_IE_B);
+    conv(r_IA, wFT_cross.EI.re, wFT_cross.EI.im, cx_EI_B);
+    conv(r_IA, wFT_cross.II.re, wFT_cross.II.im, cx_II_B);
+
+    const bE = params.beta_E, bI = params.beta_I;
+    // Velocity gain: applied ONLY to the reset pulse. Ring A's reset is boosted for
+    // positive velocity, Ring B's suppressed; the rest of the input (recurrent, cross,
+    // beta, adaptation) is ungained.
+    const betaVel = params.beta_vel || 0;
+    const gainA = Math.max(0, 1 + betaVel * velocity);
+    const gainB = Math.max(0, 1 - betaVel * velocity);
+    for (let i = 0; i < N; i++) {
+      G_EA[i] = g_EE_A[i] + g_EI_A[i] + cx_EE_A[i] + cx_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0) + (pulsing ? pulseBlob[i] * gainA : 0);
+      G_IA[i] = g_IE_A[i] + g_II_A[i] + cx_IE_A[i] + cx_II_A[i] + bI;
+      G_EB[i] = g_EE_B[i] + g_EI_B[i] + cx_EE_B[i] + cx_EI_B[i] + bE - (adaptOn ? wa*a_EB[i] : 0) + (pulsing ? pulseBlob[i] * gainB : 0);
+      G_IB[i] = g_IE_B[i] + g_II_B[i] + cx_IE_B[i] + cx_II_B[i] + bI;
+    }
+    for (let i = 0; i < N; i++) {
+      const fEA = G_EA[i] > 0 ? G_EA[i] : 0;
+      const fIA = G_IA[i] > 0 ? G_IA[i] : 0;
+      const fEB = G_EB[i] > 0 ? G_EB[i] : 0;
+      const fIB = G_IB[i] > 0 ? G_IB[i] : 0;
+      const sEA = sp ? poissonSample(fEA*dt) : fEA*dt;
+      const sIA = sp ? poissonSample(fIA*dt) : fIA*dt;
+      const sEB = sp ? poissonSample(fEB*dt) : fEB*dt;
+      const sIB = sp ? poissonSample(fIB*dt) : fIB*dt;
+      r_EA[i] += sEA - r_EA[i]*dt/tau_s;
+      r_IA[i] += sIA - r_IA[i]*dt/tau_s;
+      r_EB[i] += sEB - r_EB[i]*dt/tau_s;
+      r_IB[i] += sIB - r_IB[i]*dt/tau_s;
+      if (adaptOn) {
+        a_EA[i] += sEA - a_EA[i]*dt/tauA;
+        a_EB[i] += sEB - a_EB[i]*dt/tauA;
+      }
+    }
+    if (pulsing) pulseRemaining -= dt;
+  }
+
+  for (let i = 0; i < N; i++) {
+    g_adapt_A[i] = -wa * a_EA[i];
+    g_adapt_B[i] = -wa * a_EB[i];
+  }
+
+  let ok = true;
+  for (let i = 0; i < N; i++) {
+    if (!isFinite(r_EA[i]) || !isFinite(r_IA[i]) || !isFinite(r_EB[i]) || !isFinite(r_IB[i])) { ok = false; break; }
+  }
+  if (!ok) allocBuffers(N);
+
+  const pack = D === 2 ? (a => new Float32Array(a)) : (a => Array.from(a));
+  const msg = {
+    type: 'update', n: N, dims: D, L: L,
+    r_EA: pack(r_EA), r_IA: pack(r_IA),
+    r_EB: pack(r_EB), r_IB: pack(r_IB),
+    w_EE: pack(wFT.EE.vec), w_IE: pack(wFT.IE.vec),
+    w_EI: pack(wFT.EI.vec), w_II: pack(wFT.II.vec),
+    w_cEE: pack(wFT_cross.EE.vec), w_cIE: pack(wFT_cross.IE.vec),
+    w_cEI: pack(wFT_cross.EI.vec), w_cII: pack(wFT_cross.II.vec),
+    g_adapt_A: pack(g_adapt_A), g_adapt_B: pack(g_adapt_B),
+    adapt: params.adapt, beta_E: params.beta_E, beta_I: params.beta_I,
+  };
+  if (D < 2) {
+    const _bv = params.beta_vel || 0;
+    const _gA = Math.max(0, 1 + _bv * velocity), _gB = Math.max(0, 1 - _bv * velocity);
+    msg.gainA = _gA; msg.gainB = _gB;
+    msg.g_EE_A = pack(g_EE_A); msg.g_IE_A = pack(g_IE_A);
+    msg.g_EI_A = pack(g_EI_A); msg.g_II_A = pack(g_II_A);
+    msg.cx_EE_A = pack(cx_EE_A); msg.cx_IE_A = pack(cx_IE_A);
+    msg.cx_EI_A = pack(cx_EI_A); msg.cx_II_A = pack(cx_II_A);
+    msg.g_EE_B = pack(g_EE_B); msg.g_IE_B = pack(g_IE_B);
+    msg.g_EI_B = pack(g_EI_B); msg.g_II_B = pack(g_II_B);
+    msg.cx_EE_B = pack(cx_EE_B); msg.cx_IE_B = pack(cx_IE_B);
+    msg.cx_EI_B = pack(cx_EI_B); msg.cx_II_B = pack(cx_II_B);
+    if (silenceRemaining <= 0 && pulseRemaining > 0) {
+      const _pA = new Float64Array(N), _pB = new Float64Array(N);
+      for (let i = 0; i < N; i++) { const v = pulseBlob[i]; _pA[i] = v * _gA; _pB[i] = v * _gB; }
+      msg.gPulseA = pack(_pA); msg.gPulseB = pack(_pB);
+    } else { msg.gPulseA = []; msg.gPulseB = []; }
+    msg.G_EA = pack(G_EA); msg.G_IA = pack(G_IA);
+  }
+  self.postMessage(msg);
+  setTimeout(tick, 0);
+}
+
+self.onmessage = function(e) {
+  const d = e.data;
+  if (d.type === 'start') {
+    pendingParams = d.params; paramsDirty = true;
+    r_EA = null;
+    running = true;
+    tick();
+  } else if (d.type === 'stop') {
+    running = false;
+  } else if (d.type === 'params') {
+    pendingParams = d.params; paramsDirty = true;
+  }
+};
+</script>
+
+<script>
+// ── Resizable panel ───────────────────────────────────────────────────
+(function() {
+  const panel = document.getElementById('controls');
+  const resizer = document.getElementById('resizer');
+  const MIN_W = 220, MIN_PLOTS = 320;
+  let dragging = false;
+  resizer.addEventListener('mousedown', e => { dragging = true; resizer.classList.add('dragging'); document.body.classList.add('resizing'); e.preventDefault(); });
+  window.addEventListener('mousemove', e => { if (!dragging) return; const w = Math.max(MIN_W, Math.min(e.clientX, window.innerWidth - resizer.offsetWidth - MIN_PLOTS)); panel.style.width = w + 'px'; });
+  window.addEventListener('mouseup', () => { if (!dragging) return; dragging = false; resizer.classList.remove('dragging'); document.body.classList.remove('resizing'); });
+})();
+
+const sigToSlider = s => Math.log10(s / 0.001) / 4;
+const sliderToSig = v => 0.001 * Math.pow(10, v * 4);
+const fmtSig = s => s < 0.1 ? s.toFixed(3) : s < 1 ? s.toFixed(2) : s.toFixed(1);
+
+const WT_ROWS = [
+  { id:'EE', sigDef:0.04, ampDef:0,  ampMin:0, ampMax:50, negAmp:false, invDef:false, binDef:false },
+  { id:'IE', sigDef:0.04, ampDef:8,  ampMin:0, ampMax:50, negAmp:false, invDef:false, binDef:false },
+  { id:'EI', sigDef:0.04, ampDef:8,  ampMin:0, ampMax:50, negAmp:true,  invDef:true,  binDef:false },
+  { id:'II', sigDef:0.04, ampDef:0,  ampMin:0, ampMax:50, negAmp:true,  invDef:true,  binDef:false },
+];
+const WT_CROSS_ROWS = [
+  { id:'cEE', label:'cEE', sigDef:0.04, ampDef:0, ampMin:0, ampMax:50, negAmp:false, invDef:false, binDef:false },
+  { id:'cIE', label:'cIE', sigDef:0.04, ampDef:0, ampMin:0, ampMax:50, negAmp:false, invDef:false, binDef:false },
+  { id:'cEI', label:'cEI', sigDef:0.04, ampDef:0, ampMin:0, ampMax:50, negAmp:true,  invDef:true,  binDef:false },
+  { id:'cII', label:'cII', sigDef:0.04, ampDef:0, ampMin:0, ampMax:50, negAmp:true,  invDef:true,  binDef:false },
+];
+const SIG_ENV_DEF = 10;
+
+function buildWeightTableRows(tbody, rows) {
+  for (const r of rows) {
+    const lbl = r.label || r.id;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>w_${lbl}</td>
+      <td><input type="range" id="sig_${r.id}" min="0" max="1" step="0.001" value="${sigToSlider(r.sigDef).toFixed(3)}"></td>
+      <td><span class="sval" id="sig_${r.id}_v">${fmtSig(r.sigDef)}</span></td>
+      <td><input type="range" id="amp_${r.id}" min="${r.ampMin}" max="${r.ampMax}" step="1" value="${r.ampDef}"></td>
+      <td><span class="sval" id="amp_${r.id}_v">${r.negAmp ? -r.ampDef : r.ampDef}</span></td>
+      <td style="text-align:center"><label class="tog"><input type="checkbox" id="inv_${r.id}" ${r.invDef?'checked':''}><span class="tog-track"></span></label></td>
+      <td style="text-align:center"><label class="tog"><input type="checkbox" id="bin_${r.id}" ${r.binDef?'checked':''}><span class="tog-track"></span></label></td>`;
+    tbody.appendChild(tr);
+  }
+}
+buildWeightTableRows(document.getElementById('wtbody'), WT_ROWS);
+buildWeightTableRows(document.getElementById('wtbody_cross'), WT_CROSS_ROWS);
+
+// ── Chart helpers ─────────────────────────────────────────────────────
+const BLUE = '#e06c75', RED = '#4c9be8';
+const CGREEN = '#3fb950', CORANGE = '#e3b341';
+const WHITE = '#ffffff';
+
+function ds(label, color, dash) {
+  return { label, data: [], borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, borderDash: dash, pointRadius: 0, tension: 0 };
+}
+
+const lineLegendPlugin = {
+  id: 'lineLegend',
+  afterDraw(chart) {
+    const { ctx, chartArea, data } = chart;
+    if (!chartArea) return;
+    const dsets = data.datasets.filter((d, i) => d.data && d.data.length > 0 && chart.isDatasetVisible(i));
+    if (!dsets.length) return;
+    const lineLen = 22, gap = 5, rowH = 15, padX = 8, padY = 6, margin = 8;
+    ctx.save();
+    ctx.font = '13px "Segoe UI", system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    let maxText = 0;
+    for (const d of dsets) maxText = Math.max(maxText, ctx.measureText(d.label).width);
+    const boxW = padX*2 + lineLen + gap + maxText;
+    const boxH = padY*2 + dsets.length * rowH;
+    const boxX = chartArea.right - margin - boxW;
+    const boxY = chartArea.top + margin;
+    ctx.fillStyle = 'rgba(13,17,23,0.85)';
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.rect(boxX, boxY, boxW, boxH); ctx.fill(); ctx.stroke();
+    let y = boxY + padY + rowH / 2;
+    const xLine = boxX + padX;
+    for (let i = 0; i < dsets.length; i++) {
+      const d = dsets[i];
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = d.borderColor; ctx.lineWidth = d.borderWidth || 1.5;
+      ctx.lineCap = 'round'; ctx.setLineDash(d.borderDash || []);
+      ctx.beginPath(); ctx.moveTo(xLine, y); ctx.lineTo(xLine + lineLen, y); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = '#8b949e';
+      ctx.fillText(d.label, xLine + lineLen + gap, y);
+      y += rowH;
+    }
+    ctx.restore();
+  }
+};
+
+let stackYW = 0;
+function mkChart(id, title, datasets, xlabel) {
+  return new Chart(document.getElementById(id).getContext('2d'), {
+    type: 'line',
+    data: { labels: [], datasets },
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 12 } },
+      plugins: { title: { display: false }, legend: { display: false } },
+      scales: {
+        x: {
+          min: 1, max: 128,
+          title: { display: !!xlabel, text: xlabel || '', color: '#8b949e', font: { size: 13 } },
+          ticks: { color: '#6e7681', maxTicksLimit: 8, font: { size: 12 } },
+          grid: { color: '#21262d' }
+        },
+        y: {
+          afterFit: s => { if (s.width > stackYW) stackYW = s.width; s.width = stackYW; },
+          title: { display: true, text: title, color: '#8b949e', font: { size: 13 } },
+          ticks: { color: '#6e7681', font: { size: 12 },
+                   callback: v => {
+                     const a = Math.abs(v);
+                     if (a < 1e-6) return '0';
+                     if (a < 0.01 || a >= 1000) return v.toExponential(1);
+                     return v.toFixed(2);
+                   } },
+          grid: { color: '#21262d' }
+        }
+      }
+    },
+    plugins: [lineLegendPlugin],
+  });
+}
+
+function inputDatasets() {
+  return [
+    ds('g_EE', BLUE, []),    ds('g_EI', BLUE, [3,4]),
+    ds('g_IE', RED,  [3,4]), ds('g_II', RED,  []),
+    ds('β_E',  BLUE, [8,4]), ds('β_I',  RED,  [8,4]),
+    ds('g_a',  BLUE, [2,2,8,2]),
+    ds('cx_EE', CGREEN, []),     ds('cx_EI', CORANGE, [3,4]),
+    ds('cx_IE', CGREEN, [3,4]),  ds('cx_II', CORANGE, []),
+    ds('reset', WHITE, [6,3]),
+  ];
+}
+const charts = [
+  mkChart('c1', 'Weights', [
+    ds('w_EE', BLUE, []),    ds('w_IE', BLUE, [3,4]),
+    ds('w_EI', RED,  [3,4]), ds('w_II', RED,  []),
+    ds('w_cEE', CGREEN, []),    ds('w_cIE', CGREEN, [3,4]),
+    ds('w_cEI', CORANGE, [3,4]), ds('w_cII', CORANGE, []),
+  ]),
+  mkChart('c2_A', 'Firing rate (A)', [ ds('E', BLUE, []), ds('I', RED, []) ]),
+  mkChart('c2_B', 'Firing rate (B)', [ ds('E', BLUE, []), ds('I', RED, []) ]),
+  mkChart('c4', 'Inputs (A)', inputDatasets(), 'Neuron'),
+  mkChart('c5', 'Inputs (B)', inputDatasets(), 'Neuron'),
+];
+
+// Per-trace toggles for the two inputs plots; default-visible = g_a + reset only.
+const TRACE_LABELS = ['g_EE','g_EI','g_IE','g_II','β_E','β_I','g_a','cx_EE','cx_EI','cx_IE','cx_II','reset'];
+const TRACE_DEFAULT_ON = new Set([6, 11]);
+for (const ch of [charts[3], charts[4]]) {
+  ch.data.datasets.forEach((dset, i) => { dset.hidden = !TRACE_DEFAULT_ON.has(i); });
+  ch.update('none');
+}
+function buildTraceToggles(rowId, chart) {
+  const row = document.getElementById(rowId);
+  TRACE_LABELS.forEach((lbl, i) => {
+    const b = document.createElement('button');
+    b.className = 'trace-btn' + (chart.data.datasets[i].hidden ? '' : ' active');
+    b.textContent = lbl;
+    b.addEventListener('click', () => {
+      const dset = chart.data.datasets[i];
+      dset.hidden = !dset.hidden;
+      b.classList.toggle('active', !dset.hidden);
+      chart.update('none');
+    });
+    row.appendChild(b);
+  });
+}
+buildTraceToggles('trace_row_A', charts[3]);
+buildTraceToggles('trace_row_B', charts[4]);
+
+
+// ── Viridis colormap ──────────────────────────────────────────────────
+const VIRIDIS = [[0.00,68,1,84],[0.13,71,44,122],[0.25,59,81,139],[0.38,44,113,142],[0.50,33,144,141],[0.63,39,173,129],[0.75,92,200,99],[0.88,170,220,50],[1.00,253,231,37]];
+const VLUT = new Uint8Array(256*3);
+(function() {
+  for (let i = 0; i < 256; i++) {
+    const t = i/255;
+    let a = VIRIDIS[0], b = VIRIDIS[VIRIDIS.length-1];
+    for (let j = 1; j < VIRIDIS.length; j++) { if (t <= VIRIDIS[j][0]) { a = VIRIDIS[j-1]; b = VIRIDIS[j]; break; } }
+    const f = (b[0]-a[0]) > 0 ? (t-a[0])/(b[0]-a[0]) : 0;
+    VLUT[i*3]=Math.round(a[1]+f*(b[1]-a[1])); VLUT[i*3+1]=Math.round(a[2]+f*(b[2]-a[2])); VLUT[i*3+2]=Math.round(a[3]+f*(b[3]-a[3]));
+  }
+})();
+
+function drawHeatmap(canvas, field, L, vmin, vmax) {
+  if (canvas.width !== L) canvas.width = L;
+  if (canvas.height !== L) canvas.height = L;
+  const ctx = canvas._ctx || (canvas._ctx = canvas.getContext('2d'));
+  let img = canvas._img;
+  if (!img || img.width !== L) img = canvas._img = ctx.createImageData(L, L);
+  const data = img.data, range = (vmax > vmin) ? (vmax - vmin) : 1;
+  for (let k = 0; k < L*L; k++) {
+    let t = (field[k]-vmin)/range; t = t<0?0:t>1?1:t;
+    const idx=(t*255)|0, o=k*4, vo=idx*3;
+    data[o]=VLUT[vo]; data[o+1]=VLUT[vo+1]; data[o+2]=VLUT[vo+2]; data[o+3]=255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function fieldRange(f) {
+  let lo = Infinity, hi = -Infinity;
+  for (let k = 0; k < f.length; k++) { const v = f[k]; if (v < lo) lo = v; if (v > hi) hi = v; }
+  return [lo, hi];
+}
+function centerRow(arr, L) {
+  const cy = Math.floor(L/2), off = cy*L, out = new Array(L);
+  for (let x = 0; x < L; x++) out[x] = arr[off+x];
+  return out;
+}
+
+const HM = {
+  EA: document.getElementById('hm_EA'), IA: document.getElementById('hm_IA'),
+  EB: document.getElementById('hm_EB'), IB: document.getElementById('hm_IB'),
+};
+
+let currentN = 0, currentDims = 0;
+
+function updateCharts(d) {
+  const dims = d.dims, is2d = dims === 2, L = d.L;
+  const wlen = is2d ? L : d.n;
+
+  if (wlen !== currentN || dims !== currentDims) {
+    currentN = wlen; currentDims = dims;
+    const labels = Array.from({length: wlen}, (_, i) => i+1);
+    for (const ch of charts) { ch.data.labels = labels; ch.options.scales.x.min = 1; ch.options.scales.x.max = wlen; }
+  }
+
+  const w = is2d
+    ? [centerRow(d.w_EE,L),centerRow(d.w_IE,L),centerRow(d.w_EI,L),centerRow(d.w_II,L),
+       centerRow(d.w_cEE,L),centerRow(d.w_cIE,L),centerRow(d.w_cEI,L),centerRow(d.w_cII,L)]
+    : [d.w_EE,d.w_IE,d.w_EI,d.w_II,d.w_cEE,d.w_cIE,d.w_cEI,d.w_cII];
+  for (let i = 0; i < 8; i++) charts[0].data.datasets[i].data = w[i];
+  charts[0].update('none');
+
+  if (is2d) {
+    let rmax = 0;
+    for (let k = 0; k < d.r_EA.length; k++) {
+      if (d.r_EA[k] > rmax) rmax = d.r_EA[k];
+      if (d.r_IA[k] > rmax) rmax = d.r_IA[k];
+      if (d.r_EB[k] > rmax) rmax = d.r_EB[k];
+      if (d.r_IB[k] > rmax) rmax = d.r_IB[k];
+    }
+    drawHeatmap(HM.EA, d.r_EA, L, 0, rmax);
+    drawHeatmap(HM.IA, d.r_IA, L, 0, rmax);
+    drawHeatmap(HM.EB, d.r_EB, L, 0, rmax);
+    drawHeatmap(HM.IB, d.r_IB, L, 0, rmax);
+  } else {
+    charts[1].data.datasets[0].data = d.r_EA;
+    charts[1].data.datasets[1].data = d.r_IA;
+    charts[2].data.datasets[0].data = d.r_EB;
+    charts[2].data.datasets[1].data = d.r_IB;
+    // Lock Ring A & B rate plots to a shared y-range (upper = larger of the two plots' maxima)
+    let rmaxAB = 0;
+    for (const arr of [d.r_EA, d.r_IA, d.r_EB, d.r_IB])
+      for (let k = 0; k < arr.length; k++) if (arr[k] > rmaxAB) rmaxAB = arr[k];
+    const yhiAB = rmaxAB > 0 ? rmaxAB : 1;
+    for (const ch of [charts[1], charts[2]]) { ch.options.scales.y.min = 0; ch.options.scales.y.max = yhiAB; }
+    charts[1].update('none');
+    charts[2].update('none');
+    // Inputs plots: only the reset is gained (matches the model); everything else ungained.
+    // order: g_EE, g_EI, g_IE, g_II, β_E, β_I, g_a, cx_EE, cx_EI, cx_IE, cx_II, reset
+    const inA = [
+      d.g_EE_A, d.g_EI_A, d.g_IE_A, d.g_II_A,
+      new Array(d.n).fill(d.beta_E), new Array(d.n).fill(d.beta_I),
+      d.adapt ? d.g_adapt_A : [],
+      d.cx_EE_A, d.cx_EI_A, d.cx_IE_A, d.cx_II_A, d.gPulseA,
+    ];
+    const inB = [
+      d.g_EE_B, d.g_EI_B, d.g_IE_B, d.g_II_B,
+      new Array(d.n).fill(d.beta_E), new Array(d.n).fill(d.beta_I),
+      d.adapt ? d.g_adapt_B : [],
+      d.cx_EE_B, d.cx_EI_B, d.cx_IE_B, d.cx_II_B, d.gPulseB,
+    ];
+    for (let i = 0; i < inA.length; i++) charts[3].data.datasets[i].data = inA[i];
+    for (let i = 0; i < inB.length; i++) charts[4].data.datasets[i].data = inB[i];
+    // shared y-range over the VISIBLE traces of both inputs plots
+    let ilo = Infinity, ihi = -Infinity;
+    for (const ch of [charts[3], charts[4]]) {
+      ch.data.datasets.forEach(dset => {
+        if (dset.hidden) return;
+        const arr = dset.data;
+        for (let k = 0; k < arr.length; k++) { const v = arr[k]; if (v < ilo) ilo = v; if (v > ihi) ihi = v; }
+      });
+    }
+    if (!isFinite(ilo) || !isFinite(ihi) || ihi <= ilo) { ilo = 0; ihi = 1; }
+    const ipad = (ihi - ilo) * 0.05;
+    for (const ch of [charts[3], charts[4]]) { ch.options.scales.y.min = ilo - ipad; ch.options.scales.y.max = ihi + ipad; }
+    charts[3].update('none');
+    charts[4].update('none');
+  }
+}
+
+// ── Worker ────────────────────────────────────────────────────────────
+const src = document.getElementById('worker-src').textContent;
+const worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'application/javascript' })));
+let pendingUpdate = null;
+worker.onmessage = e => { if (e.data.type === 'update') pendingUpdate = e.data; };
+(function renderLoop() { if (pendingUpdate) { updateCharts(pendingUpdate); pendingUpdate = null; } requestAnimationFrame(renderLoop); })();
+
+// ── Parameter collection ──────────────────────────────────────────────
+let currentDim = 1;
+function getParams() {
+  const p = {
+    speed:   document.getElementById('slow_speed').checked ? 0.01 : 1,
+    n:       Math.pow(2, +document.getElementById('n_exp').value),
+    dims:    currentDim,
+    spiking: document.getElementById('use_spiking').checked,
+    beta_E:  +document.getElementById('beta_E').value,
+    beta_I:  +document.getElementById('beta_I').value,
+    sig_env: sliderToSig(+document.getElementById('sig_env').value),
+    sig_env_cross: sliderToSig(+document.getElementById('sig_env_cross').value),
+    adapt:   document.getElementById('use_adapt').checked,
+    w_a:     +document.getElementById('amp_a').value,
+    tau_a:   +document.getElementById('tau_a').value,
+    reset:   document.getElementById('use_reset').checked,
+    t_reset: +document.getElementById('t_reset').value,
+    pulse_sig_frac: +document.getElementById('pulse_sig').value,
+    pulse_amp:      +document.getElementById('pulse_amp').value,
+    pulse_dur:      +document.getElementById('pulse_dur').value / 1000,
+    silence_dur:    +document.getElementById('silence_dur').value / 1000,
+    velocity:       +document.getElementById('pulse_vel').value,
+    beta_vel:       +document.getElementById('beta_vel').value,
+  };
+  for (const r of WT_ROWS) {
+    p['sig_'+r.id] = sliderToSig(+document.getElementById('sig_'+r.id).value);
+    const ampRaw = +document.getElementById('amp_'+r.id).value;
+    p['amp_'+r.id] = r.negAmp ? -ampRaw : ampRaw;
+    p['inv_'+r.id] = document.getElementById('inv_'+r.id).checked;
+    p['bin_'+r.id] = document.getElementById('bin_'+r.id).checked;
+  }
+  for (const r of WT_CROSS_ROWS) {
+    p['sig_'+r.id] = sliderToSig(+document.getElementById('sig_'+r.id).value);
+    const ampRaw = +document.getElementById('amp_'+r.id).value;
+    p['amp_'+r.id] = r.negAmp ? -ampRaw : ampRaw;
+    p['inv_'+r.id] = document.getElementById('inv_'+r.id).checked;
+    p['bin_'+r.id] = document.getElementById('bin_'+r.id).checked;
+  }
+  return p;
+}
+function sendParams() { worker.postMessage({ type: 'params', params: getParams() }); }
+
+// ── Start/Stop ────────────────────────────────────────────────────────
+let simRunning = false;
+document.getElementById('startstop').addEventListener('click', () => {
+  const btn = document.getElementById('startstop');
+  if (!simRunning) {
+    simRunning = true; btn.textContent = 'Stop'; btn.className = 'running';
+    worker.postMessage({ type: 'start', params: getParams() });
+  } else {
+    simRunning = false; btn.textContent = 'Start'; btn.className = 'stopped';
+    worker.postMessage({ type: 'stop' });
+  }
+});
+
+// ── Dim toggle ────────────────────────────────────────────────────────
+function setDim(dim) {
+  currentDim = dim;
+  const is2 = dim === 2;
+  document.querySelectorAll('#dimseg .dimbtn').forEach(b => b.classList.toggle('active', +b.dataset.dim === dim));
+  document.getElementById('c2_A').style.display = is2 ? 'none' : '';
+  document.getElementById('c2_B').style.display = is2 ? 'none' : '';
+  document.getElementById('rate-2d-A').style.display = is2 ? 'flex' : 'none';
+  document.getElementById('rate-2d-B').style.display = is2 ? 'flex' : 'none';
+  document.getElementById('c4').style.display = is2 ? 'none' : '';
+  document.getElementById('c5').style.display = is2 ? 'none' : '';
+  if (!is2) { charts[1].resize(); charts[2].resize(); charts[3].resize(); charts[4].resize(); }
+  sendParams();
+}
+const DIM_DEFAULT_EXP = { 2: 6 };
+document.getElementById('dimseg').addEventListener('click', e => {
+  const btn = e.target.closest('.dimbtn');
+  if (!btn) return;
+  const dim = +btn.dataset.dim;
+  if (dim === currentDim) return;
+  const exp = DIM_DEFAULT_EXP[dim];
+  if (exp != null) { document.getElementById('n_exp').value = exp; document.getElementById('n_val').textContent = Math.pow(2, exp); }
+  setDim(dim);
+});
+
+// ── Control listeners ─────────────────────────────────────────────────
+document.getElementById('use_spiking').addEventListener('change', sendParams);
+document.getElementById('slow_speed').addEventListener('change', sendParams);
+document.getElementById('n_exp').addEventListener('input', e => { document.getElementById('n_val').textContent = Math.pow(2, +e.target.value); sendParams(); });
+document.getElementById('beta_E').addEventListener('input', e => { document.getElementById('beta_E_val').textContent = e.target.value; sendParams(); });
+document.getElementById('beta_I').addEventListener('input', e => { document.getElementById('beta_I_val').textContent = e.target.value; sendParams(); });
+document.getElementById('beta_vel').addEventListener('input', e => { document.getElementById('beta_vel_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
+document.getElementById('sig_env').addEventListener('input', e => { document.getElementById('sig_env_v').textContent = fmtSig(sliderToSig(+e.target.value)); sendParams(); });
+document.getElementById('sig_env_cross').addEventListener('input', e => { document.getElementById('sig_env_cross_v').textContent = fmtSig(sliderToSig(+e.target.value)); sendParams(); });
+document.getElementById('use_adapt').addEventListener('change', sendParams);
+document.getElementById('amp_a').addEventListener('input', e => { document.getElementById('amp_a_val').textContent = e.target.value; sendParams(); });
+document.getElementById('tau_a').addEventListener('input', e => { document.getElementById('tau_a_val').textContent = (+e.target.value).toFixed(1); sendParams(); });
+document.getElementById('use_reset').addEventListener('change', sendParams);
+document.getElementById('t_reset').addEventListener('input', e => { document.getElementById('t_reset_val').textContent = (+e.target.value).toFixed(1); sendParams(); });
+document.getElementById('pulse_sig').addEventListener('input', e => { document.getElementById('pulse_sig_val').textContent = (+e.target.value).toFixed(3); sendParams(); });
+document.getElementById('pulse_amp').addEventListener('input', e => { document.getElementById('pulse_amp_val').textContent = e.target.value; sendParams(); });
+document.getElementById('pulse_dur').addEventListener('input', e => { document.getElementById('pulse_dur_val').textContent = e.target.value; sendParams(); });
+document.getElementById('silence_dur').addEventListener('input', e => { document.getElementById('silence_dur_val').textContent = e.target.value; sendParams(); });
+document.getElementById('pulse_vel').addEventListener('input', e => { document.getElementById('pulse_vel_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
+
+for (const r of [...WT_ROWS, ...WT_CROSS_ROWS]) {
+  document.getElementById('sig_'+r.id).addEventListener('input', e => { document.getElementById('sig_'+r.id+'_v').textContent = fmtSig(sliderToSig(+e.target.value)); sendParams(); });
+  document.getElementById('amp_'+r.id).addEventListener('input', e => { const v = +e.target.value; document.getElementById('amp_'+r.id+'_v').textContent = r.negAmp ? -v : v; sendParams(); });
+  document.getElementById('inv_'+r.id).addEventListener('change', sendParams);
+  document.getElementById('bin_'+r.id).addEventListener('change', sendParams);
+}
+
+// ── Presets ───────────────────────────────────────────────────────────
+const PRESET_STORAGE_KEY = 'double_ring_attractor_presets';
+const GH_TOKEN_KEY = 'ring_attractor_gh_token';
+const GH_OWNER = 'johnwidloski';
+const GH_REPO = 'RingAttractorBuild';
+const GH_BRANCH = 'main';
+const GH_PATH = 'presets_double.json';
+const GH_API = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
+const SHARED_URL = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_PATH}`;
+const presets = {};
+const b64encode = str => btoa(unescape(encodeURIComponent(str)));
+const getToken = () => localStorage.getItem(GH_TOKEN_KEY) || '';
+function setPresetStatus(msg) { const el = document.getElementById('preset_status'); if (el) el.textContent = msg || ''; }
+
+async function loadSharedPresets() {
+  let shared = {};
+  try {
+    const res = await fetch(SHARED_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (res.ok) { const j = await res.json(); if (j && typeof j === 'object') { shared = j; for (const k of Object.keys(shared)) { if (!(k in presets)) presets[k] = shared[k]; } renderPresets(); } }
+  } catch (err) { console.warn('Failed to load shared presets:', err); }
+  return shared;
+}
+function hasUnpublished(shared) { for (const k of Object.keys(presets)) { if (JSON.stringify(presets[k]) !== JSON.stringify(shared[k])) return true; } return false; }
+async function commitPresets() {
+  const token = getToken(); if (!token) return;
+  setPresetStatus('Committing…');
+  try {
+    const hdr = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' };
+    let sha;
+    const getRes = await fetch(GH_API + '?ref=' + GH_BRANCH, { headers: hdr, cache: 'no-store' });
+    if (getRes.ok) sha = (await getRes.json()).sha;
+    const body = { message: 'Update presets', content: b64encode(JSON.stringify(presets, null, 2)), branch: GH_BRANCH };
+    if (sha) body.sha = sha;
+    const putRes = await fetch(GH_API, { method: 'PUT', headers: hdr, body: JSON.stringify(body) });
+    if (!putRes.ok) throw new Error('HTTP ' + putRes.status);
+    setPresetStatus('Committed ✓');
+  } catch (err) { setPresetStatus('Commit failed — ' + err.message); }
+}
+function persistPresets() { try { localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(presets)); } catch(e) {} }
+function restorePresets() { try { const raw = localStorage.getItem(PRESET_STORAGE_KEY); if (raw) { const loaded = JSON.parse(raw); if (loaded && typeof loaded === 'object') Object.assign(presets, loaded); } } catch(e) {} }
+
+function loadPreset(p) {
+  document.getElementById('use_spiking').checked = !!p.spiking;
+  document.getElementById('slow_speed').checked = (p.speed != null && p.speed < 1);
+  const n_exp = Math.round(Math.log2(p.n));
+  document.getElementById('n_exp').value = n_exp;
+  document.getElementById('n_val').textContent = Math.pow(2, n_exp);
+  document.getElementById('beta_E').value = p.beta_E; document.getElementById('beta_E_val').textContent = p.beta_E;
+  document.getElementById('beta_I').value = p.beta_I; document.getElementById('beta_I_val').textContent = p.beta_I;
+  document.getElementById('sig_env').value = sigToSlider(p.sig_env).toFixed(3);
+  document.getElementById('sig_env_v').textContent = fmtSig(p.sig_env);
+  document.getElementById('sig_env_cross').value = sigToSlider(p.sig_env_cross || SIG_ENV_DEF).toFixed(3);
+  document.getElementById('sig_env_cross_v').textContent = fmtSig(p.sig_env_cross || SIG_ENV_DEF);
+  document.getElementById('use_adapt').checked = !!p.adapt;
+  const wa = p.w_a != null ? p.w_a : 1;
+  document.getElementById('amp_a').value = wa; document.getElementById('amp_a_val').textContent = wa;
+  const tauA = p.tau_a != null ? p.tau_a : 3.0;
+  document.getElementById('tau_a').value = tauA; document.getElementById('tau_a_val').textContent = (+tauA).toFixed(1);
+  document.getElementById('use_reset').checked = !!p.reset;
+  const tr = p.t_reset != null ? p.t_reset : 5;
+  document.getElementById('t_reset').value = tr; document.getElementById('t_reset_val').textContent = (+tr).toFixed(1);
+  const psig = p.pulse_sig_frac != null ? p.pulse_sig_frac : 0.0625;
+  document.getElementById('pulse_sig').value = psig; document.getElementById('pulse_sig_val').textContent = (+psig).toFixed(3);
+  const pamp = p.pulse_amp != null ? p.pulse_amp : 500;
+  document.getElementById('pulse_amp').value = pamp; document.getElementById('pulse_amp_val').textContent = pamp;
+  const pdurMs = Math.round((p.pulse_dur != null ? p.pulse_dur : 0.050) * 1000);
+  document.getElementById('pulse_dur').value = pdurMs; document.getElementById('pulse_dur_val').textContent = pdurMs;
+  const sdurMs = Math.round((p.silence_dur != null ? p.silence_dur : 0.5) * 1000);
+  document.getElementById('silence_dur').value = sdurMs; document.getElementById('silence_dur_val').textContent = sdurMs;
+  const vel = p.velocity != null ? p.velocity : 0;
+  document.getElementById('pulse_vel').value = vel; document.getElementById('pulse_vel_val').textContent = (+vel).toFixed(2);
+  const bvel = p.beta_vel != null ? p.beta_vel : 0;
+  document.getElementById('beta_vel').value = bvel; document.getElementById('beta_vel_val').textContent = (+bvel).toFixed(2);
+  for (const r of WT_ROWS) {
+    const sig = p['sig_'+r.id];
+    document.getElementById('sig_'+r.id).value = sigToSlider(sig).toFixed(3);
+    document.getElementById('sig_'+r.id+'_v').textContent = fmtSig(sig);
+    const ampSigned = p['amp_'+r.id]; const ampRaw = r.negAmp ? -ampSigned : ampSigned;
+    document.getElementById('amp_'+r.id).value = ampRaw;
+    document.getElementById('amp_'+r.id+'_v').textContent = r.negAmp ? -ampRaw : ampRaw;
+    document.getElementById('inv_'+r.id).checked = !!p['inv_'+r.id];
+    document.getElementById('bin_'+r.id).checked = !!p['bin_'+r.id];
+  }
+  for (const r of WT_CROSS_ROWS) {
+    const sig = p['sig_'+r.id] || r.sigDef;
+    document.getElementById('sig_'+r.id).value = sigToSlider(sig).toFixed(3);
+    document.getElementById('sig_'+r.id+'_v').textContent = fmtSig(sig);
+    const ampSigned = p['amp_'+r.id] != null ? p['amp_'+r.id] : 0;
+    const ampRaw = r.negAmp ? -ampSigned : ampSigned;
+    document.getElementById('amp_'+r.id).value = ampRaw;
+    document.getElementById('amp_'+r.id+'_v').textContent = r.negAmp ? -ampRaw : ampRaw;
+    document.getElementById('inv_'+r.id).checked = !!p['inv_'+r.id];
+    document.getElementById('bin_'+r.id).checked = !!p['bin_'+r.id];
+  }
+  setDim(p.dims === 2 ? 2 : 1);
+}
+
+function renderPresets() {
+  const list = document.getElementById('preset_list'); list.innerHTML = '';
+  for (const name of Object.keys(presets)) {
+    const row = document.createElement('div'); row.className = 'preset-row';
+    const loadBtn = document.createElement('button'); loadBtn.textContent = name; loadBtn.className = 'preset-btn';
+    loadBtn.addEventListener('click', () => loadPreset(presets[name]));
+    const delBtn = document.createElement('button'); delBtn.textContent = '×'; delBtn.className = 'preset-del';
+    delBtn.addEventListener('click', () => { delete presets[name]; persistPresets(); renderPresets(); commitPresets(); });
+    row.appendChild(loadBtn); row.appendChild(delBtn); list.appendChild(row);
+  }
+}
+
+document.getElementById('preset_save').addEventListener('click', () => {
+  const nameInput = document.getElementById('preset_name'); const nm = nameInput.value.trim();
+  if (!nm) return;
+  presets[nm] = getParams(); nameInput.value = '';
+  persistPresets(); renderPresets(); commitPresets();
+});
+document.getElementById('preset_name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('preset_save').click(); });
+document.getElementById('presets_title').addEventListener('click', () => {
+  const cur = getToken();
+  const next = prompt('GitHub token (Contents r/w on ' + GH_OWNER + '/' + GH_REPO + '). Leave blank to clear.', cur);
+  if (next === null) return;
+  const t = next.trim();
+  if (t) { localStorage.setItem(GH_TOKEN_KEY, t); setPresetStatus('Token saved.'); }
+  else { localStorage.removeItem(GH_TOKEN_KEY); setPresetStatus('Token cleared.'); }
+});
+
+restorePresets(); renderPresets();
+if (getToken()) setPresetStatus('Committing enabled.');
+loadSharedPresets().then(shared => { if (getToken() && hasUnpublished(shared)) commitPresets(); });
+
+</script>
+</body>
+</html>
