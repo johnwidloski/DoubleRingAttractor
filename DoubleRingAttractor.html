@@ -13,6 +13,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 #plots { flex: 1; display: flex; flex-direction: row; padding: 6px 6px 6px 8px; gap: 8px; overflow: hidden; background: #0d1117; }
 #plots-left { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: hidden; flex: 1; min-width: 0; }
 .plot-wrap { flex: 1; position: relative; min-height: 0; }
+#com-wrap { flex: 2; }
 #rate-2d-A, #rate-2d-B { gap: 12px; align-items: center; justify-content: center; }
 .hm-row { display: flex; flex-direction: row; gap: 6px; min-height: 0; height: 100%; align-items: center; justify-content: center; }
 .hm { position: relative; height: 100%; aspect-ratio: 1 / 1; }
@@ -75,8 +76,12 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
       <button type="button" class="dimbtn active" data-dim="1">1D</button>
       <button type="button" class="dimbtn" data-dim="2">2D</button>
     </div>
-    <span class="lbl" style="min-width:auto; margin-left:12px">Slow</span>
-    <label class="tog"><input type="checkbox" id="slow_speed"><span class="tog-track"></span></label>
+  </div>
+
+  <div class="ctrl-row">
+    <span class="lbl" style="min-width:auto">Speed</span>
+    <input type="range" id="sim_speed" min="0.01" max="1" step="0.01" value="1">
+    <span class="sval" id="sim_speed_val">1.00</span>
   </div>
 
   <div>
@@ -152,19 +157,38 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
     </div>
     <div class="ctrl-row" style="margin-left: 40px;">
       <span class="lbl" style="min-width:auto; font-size:12px">Silence (ms)</span>
-      <input type="range" id="silence_dur" min="0" max="200" step="50" value="200" style="min-width:50px">
+      <input type="range" id="silence_dur" min="0" max="200" step="10" value="200" style="min-width:50px">
       <span class="sval" id="silence_dur_val" style="min-width:auto">200</span>
       <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Duration (ms)</span>
-      <input type="range" id="pulse_dur" min="0.1" max="200" step="0.1" value="50" style="min-width:50px">
+      <input type="range" id="pulse_dur" min="10" max="200" step="10" value="50" style="min-width:50px">
       <span class="sval" id="pulse_dur_val" style="min-width:auto">50</span>
       <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Interval (s)</span>
-      <input type="range" id="t_reset" min="0" max="5" step="0.1" value="5" style="min-width:50px">
-      <span class="sval" id="t_reset_val" style="min-width:auto">5.0</span>
+      <input type="range" id="t_reset" min="0" max="2" step="0.1" value="2" style="min-width:50px">
+      <span class="sval" id="t_reset_val" style="min-width:auto">2.0</span>
     </div>
     <div class="ctrl-row" style="margin-left: 40px;">
       <span class="lbl" style="min-width:auto; font-size:12px">Velocity (ring/s)</span>
       <input type="range" id="pulse_vel" min="-0.2" max="0.2" step="0.005" value="0" style="min-width:50px">
       <span class="sval" id="pulse_vel_val" style="min-width:auto">0.00</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Bump Center</div>
+    <div class="ctrl-row">
+      <span class="lbl" style="min-width:auto">Window (s)</span>
+      <input type="range" id="com_window" min="0.5" max="10" step="0.5" value="2" style="min-width:50px">
+      <span class="sval" id="com_window_val">2.0</span>
+    </div>
+    <div class="ctrl-row">
+      <span class="lbl" style="min-width:auto">Min concentration</span>
+      <input type="range" id="com_conc" min="0" max="1" step="0.01" value="0" style="min-width:50px">
+      <span class="sval" id="com_conc_val">0.00</span>
+    </div>
+    <div class="ctrl-row">
+      <span class="lbl" style="min-width:auto">Min mean rate</span>
+      <input type="range" id="com_rate" min="0" max="2" step="0.01" value="0" style="min-width:50px">
+      <span class="sval" id="com_rate_val">0.00</span>
     </div>
   </div>
 
@@ -210,6 +234,7 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
     </div>
     <div class="plot-wrap" id="inputs-wrap"><canvas id="c4"></canvas></div>
     <div class="plot-wrap" id="inputs-wrap-B"><canvas id="c5"></canvas></div>
+    <div class="plot-wrap" id="com-wrap"><canvas id="c6"></canvas></div>
   </div>
 </div>
 
@@ -303,6 +328,8 @@ let a_EA, a_EB, g_adapt_A, g_adapt_B;
 let pulseBlob;
 let pulsePos = 0.5;
 let resetElapsed = 0, silenceRemaining = 0, pulseRemaining = 0;
+let simTime = 0;
+let cosTab = null, sinTab = null;
 let running = false, pendingParams = null, paramsDirty = false;
 
 const dt = 0.5 / 1000;
@@ -447,6 +474,8 @@ function allocBuffers(n) {
   a_EA = new Float64Array(n); a_EB = new Float64Array(n);
   g_adapt_A = new Float64Array(n); g_adapt_B = new Float64Array(n);
   pulseBlob = new Float64Array(n);
+  cosTab = new Float64Array(n); sinTab = new Float64Array(n);
+  for (let i = 0; i < n; i++) { const a = 2*Math.PI*i/n; cosTab[i] = Math.cos(a); sinTab[i] = Math.sin(a); }
   if (D === 2) {
     const c = Math.floor(L / 2);
     r_EA[c*L+c] = 1; r_EB[c*L+c] = 1;
@@ -456,6 +485,7 @@ function allocBuffers(n) {
   }
   pulsePos = 0.5;
   buildPulseBlob();
+  simTime = 0;
   resetElapsed = 0;
   silenceRemaining = params ? params.silence_dur : SILENCE_DUR;
   pulseRemaining = params ? params.pulse_dur : PULSE_DUR;
@@ -506,6 +536,14 @@ function poissonSample(lam) {
   return k - 1;
 }
 
+function circCoM1D(r) {
+  let sx = 0, sy = 0, sum = 0;
+  for (let i = 0; i < N; i++) { sx += r[i]*cosTab[i]; sy += r[i]*sinTab[i]; sum += r[i]; }
+  if (sum <= 1e-9) return null;
+  let ang = Math.atan2(sy, sx); if (ang < 0) ang += 2*Math.PI;
+  return { y: ang / (2*Math.PI) * N, R: Math.sqrt(sx*sx + sy*sy) / sum, m: sum / N };  // R=concentration[0,1], m=mean rate
+}
+
 function tick() {
   if (!running) return;
   if (paramsDirty && pendingParams) {
@@ -520,8 +558,10 @@ function tick() {
   const conv = D === 2 ? circConvInto2D : circConvInto;
   const baseSteps = D === 2 ? STEPS_2D : STEPS_PER_TICK;
   const steps = Math.max(1, Math.round(baseSteps * (params.speed || 1)));
+  const comSamples = (D < 2) ? [] : null;   // per-step E-bump CoM (1D only)
 
   for (let s = 0; s < steps; s++) {
+    simTime += dt;
     if (resetOn) {
       resetElapsed += dt;
       if (resetElapsed >= tReset) {
@@ -606,6 +646,12 @@ function tick() {
       }
     }
     if (pulsing) pulseRemaining -= dt;
+    if (comSamples) {
+      const ca = circCoM1D(r_EA), cb = circCoM1D(r_EB);
+      comSamples.push({ t: simTime,
+        a: ca ? ca.y : null, ra: ca ? ca.R : 0, ma: ca ? ca.m : 0,
+        b: cb ? cb.y : null, rb: cb ? cb.R : 0, mb: cb ? cb.m : 0 });
+    }
   }
 
   for (let i = 0; i < N; i++) {
@@ -621,7 +667,7 @@ function tick() {
 
   const pack = D === 2 ? (a => new Float32Array(a)) : (a => Array.from(a));
   const msg = {
-    type: 'update', n: N, dims: D, L: L,
+    type: 'update', n: N, dims: D, L: L, t: simTime,
     r_EA: pack(r_EA), r_IA: pack(r_IA),
     r_EB: pack(r_EB), r_IB: pack(r_IB),
     w_EE: pack(wFT.EE.vec), w_IE: pack(wFT.IE.vec),
@@ -649,6 +695,7 @@ function tick() {
       msg.gPulseA = pack(_pA); msg.gPulseB = pack(_pB);
     } else { msg.gPulseA = []; msg.gPulseB = []; }
     msg.G_EA = pack(G_EA); msg.G_IA = pack(G_IA);
+    msg.comSamples = comSamples;
   }
   self.postMessage(msg);
   setTimeout(tick, 0);
@@ -817,7 +864,7 @@ const charts = [
   ]),
   mkChart('c2_A', 'Firing rate (A)', [ ds('E', BLUE, []), ds('I', RED, []) ]),
   mkChart('c2_B', 'Firing rate (B)', [ ds('E', BLUE, []), ds('I', RED, []) ]),
-  mkChart('c4', 'Inputs (A)', inputDatasets(), 'Neuron'),
+  mkChart('c4', 'Inputs (A)', inputDatasets()),
   mkChart('c5', 'Inputs (B)', inputDatasets(), 'Neuron'),
 ];
 
@@ -845,6 +892,113 @@ function buildTraceToggles(rowId, chart) {
 }
 buildTraceToggles('trace_row_A', charts[3]);
 buildTraceToggles('trace_row_B', charts[4]);
+
+// ── Bump center-of-mass plot (6th window) ───────────────────────────────
+const COM_A_COLOR = '#4c9be8', COM_B_COLOR = '#e06c75';   // A = blue, B = red
+let comWindowSec = 2.0;
+let comHistA = [], comHistB = [];   // records: {t, y} (1D) or {t, x, y} (2D)
+function clearComHist() { comHistA = []; comHistB = []; }
+
+// Circular center of mass of a 1D rate vector -> {idx in [0,n), R in [0,1]} (null if flat).
+function circCoM(r, n) {
+  let sx = 0, sy = 0, sum = 0;
+  for (let i = 0; i < n; i++) { const a = 2*Math.PI*i/n; sx += r[i]*Math.cos(a); sy += r[i]*Math.sin(a); sum += r[i]; }
+  if (sum <= 1e-9) return null;
+  let ang = Math.atan2(sy, sx); if (ang < 0) ang += 2*Math.PI;
+  return { idx: ang / (2*Math.PI) * n, R: Math.sqrt(sx*sx + sy*sy) / sum, m: sum / n };
+}
+// 2D: collapse the L×L field onto each axis, circular CoM per axis -> {x, y, R=min(Rx,Ry)}.
+function circCoM2D(r, L) {
+  const px = new Float64Array(L), py = new Float64Array(L);
+  for (let y = 0; y < L; y++) { const off = y*L; for (let x = 0; x < L; x++) { const v = r[off+x]; px[x] += v; py[y] += v; } }
+  const cx = circCoM(px, L), cy = circCoM(py, L);
+  return (cx === null || cy === null) ? null : { x: cx.idx, y: cy.idx, R: Math.min(cx.R, cy.R), m: Math.min(cx.m, cy.m) };
+}
+
+const comLegendPlugin = {
+  id: 'comLegend',
+  afterDraw(chart) {
+    const { ctx, chartArea } = chart; if (!chartArea) return;
+    const items = chart.data.datasets;
+    ctx.save();
+    ctx.font = '12px "Segoe UI", system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    const rowH = 16, padX = 8, padY = 5, dotR = 3, gap = 6, margin = 8;
+    let maxText = 0; for (const d of items) maxText = Math.max(maxText, ctx.measureText(d.label).width);
+    const boxW = padX*2 + dotR*2 + gap + maxText, boxH = padY*2 + items.length*rowH;
+    const boxX = chartArea.right - margin - boxW, boxY = chartArea.top + margin;
+    ctx.fillStyle = 'rgba(13,17,23,0.85)'; ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.rect(boxX, boxY, boxW, boxH); ctx.fill(); ctx.stroke();
+    let y = boxY + padY + rowH/2;
+    for (const d of items) {
+      ctx.fillStyle = d.borderColor; ctx.beginPath(); ctx.arc(boxX + padX + dotR, y, dotR, 0, 2*Math.PI); ctx.fill();
+      ctx.fillStyle = '#8b949e'; ctx.fillText(d.label, boxX + padX + dotR*2 + gap, y);
+      y += rowH;
+    }
+    ctx.restore();
+  }
+};
+const comChart = new Chart(document.getElementById('c6').getContext('2d'), {
+  type: 'scatter',
+  data: { datasets: [
+    { label: 'Ring A', data: [], borderColor: COM_A_COLOR, backgroundColor: COM_A_COLOR, pointRadius: 2, showLine: false },
+    { label: 'Ring B', data: [], borderColor: COM_B_COLOR, backgroundColor: COM_B_COLOR, pointRadius: 2, showLine: false },
+  ] },
+  options: {
+    animation: false, responsive: true, maintainAspectRatio: false,
+    layout: { padding: { right: 12 } },
+    plugins: { title: { display: false }, legend: { display: false } },
+    scales: {
+      x: { type: 'linear', title: { display: true, text: 'Time (s)', color: '#8b949e', font: { size: 13 } }, ticks: { color: '#6e7681', maxTicksLimit: 8, font: { size: 12 } }, grid: { color: '#21262d' } },
+      y: { min: 0, max: 128, title: { display: true, text: 'Bump center (neuron)', color: '#8b949e', font: { size: 13 } }, ticks: { color: '#6e7681', font: { size: 12 } }, grid: { color: '#21262d' } }
+    }
+  },
+  plugins: [comLegendPlugin]
+});
+document.getElementById('com_window').addEventListener('input', e => {
+  comWindowSec = +e.target.value;
+  document.getElementById('com_window_val').textContent = comWindowSec.toFixed(1);
+});
+let comConc = 0;
+document.getElementById('com_conc').addEventListener('input', e => {
+  comConc = +e.target.value;
+  document.getElementById('com_conc_val').textContent = comConc.toFixed(2);
+});
+let comRate = 0;
+document.getElementById('com_rate').addEventListener('input', e => {
+  comRate = +e.target.value;
+  document.getElementById('com_rate_val').textContent = comRate.toFixed(2);
+});
+
+function updateComChart(d) {
+  const t = d.t || 0;
+  if (d.dims === 2) {
+    const L = d.L;
+    const ca = circCoM2D(d.r_EA, L), cb = circCoM2D(d.r_EB, L);
+    if (ca && ca.R >= comConc && ca.m >= comRate) comHistA.push({ t, x: ca.x, y: ca.y });
+    if (cb && cb.R >= comConc && cb.m >= comRate) comHistB.push({ t, x: cb.x, y: cb.y });
+    while (comHistA.length && comHistA[0].t < t - comWindowSec) comHistA.shift();
+    while (comHistB.length && comHistB[0].t < t - comWindowSec) comHistB.shift();
+    comChart.data.datasets[0].data = comHistA.map(p => ({ x: p.x, y: p.y }));
+    comChart.data.datasets[1].data = comHistB.map(p => ({ x: p.x, y: p.y }));
+    comChart.options.scales.x.type = 'linear';
+    comChart.options.scales.x.title.text = 'Bump center x (neuron)';
+    comChart.options.scales.x.min = 0; comChart.options.scales.x.max = L;
+    comChart.options.scales.y.title.text = 'Bump center y (neuron)';
+    comChart.options.scales.y.min = 0; comChart.options.scales.y.max = L;
+  } else {
+    const n = d.n;
+    // history is filled per integration step in worker.onmessage; just trim + render
+    while (comHistA.length && comHistA[0].t < t - comWindowSec) comHistA.shift();
+    while (comHistB.length && comHistB[0].t < t - comWindowSec) comHistB.shift();
+    comChart.data.datasets[0].data = comHistA.map(p => ({ x: p.t, y: p.y }));
+    comChart.data.datasets[1].data = comHistB.map(p => ({ x: p.t, y: p.y }));
+    comChart.options.scales.x.title.text = 'Time (s)';
+    comChart.options.scales.x.min = t - comWindowSec; comChart.options.scales.x.max = t;
+    comChart.options.scales.y.title.text = 'Bump center (neuron)';
+    comChart.options.scales.y.min = 0; comChart.options.scales.y.max = n;
+  }
+  comChart.update('none');
+}
 
 
 // ── Viridis colormap ──────────────────────────────────────────────────
@@ -901,6 +1055,7 @@ function updateCharts(d) {
     currentN = wlen; currentDims = dims;
     const labels = Array.from({length: wlen}, (_, i) => i+1);
     for (const ch of charts) { ch.data.labels = labels; ch.options.scales.x.min = 1; ch.options.scales.x.max = wlen; }
+    clearComHist();
   }
 
   const w = is2d
@@ -966,20 +1121,29 @@ function updateCharts(d) {
     charts[3].update('none');
     charts[4].update('none');
   }
+  updateComChart(d);
 }
 
 // ── Worker ────────────────────────────────────────────────────────────
 const src = document.getElementById('worker-src').textContent;
 const worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'application/javascript' })));
 let pendingUpdate = null;
-worker.onmessage = e => { if (e.data.type === 'update') pendingUpdate = e.data; };
+worker.onmessage = e => {
+  if (e.data.type !== 'update') return;
+  pendingUpdate = e.data;
+  const cs = e.data.comSamples;
+  if (cs) for (const s of cs) {
+    if (s.a !== null && s.ra >= comConc && s.ma >= comRate) comHistA.push({ t: s.t, y: s.a });
+    if (s.b !== null && s.rb >= comConc && s.mb >= comRate) comHistB.push({ t: s.t, y: s.b });
+  }
+};
 (function renderLoop() { if (pendingUpdate) { updateCharts(pendingUpdate); pendingUpdate = null; } requestAnimationFrame(renderLoop); })();
 
 // ── Parameter collection ──────────────────────────────────────────────
 let currentDim = 1;
 function getParams() {
   const p = {
-    speed:   document.getElementById('slow_speed').checked ? 0.01 : 1,
+    speed:   +document.getElementById('sim_speed').value,
     n:       Math.pow(2, +document.getElementById('n_exp').value),
     dims:    currentDim,
     spiking: document.getElementById('use_spiking').checked,
@@ -1023,6 +1187,7 @@ document.getElementById('startstop').addEventListener('click', () => {
   const btn = document.getElementById('startstop');
   if (!simRunning) {
     simRunning = true; btn.textContent = 'Stop'; btn.className = 'running';
+    clearComHist();
     worker.postMessage({ type: 'start', params: getParams() });
   } else {
     simRunning = false; btn.textContent = 'Start'; btn.className = 'stopped';
@@ -1042,6 +1207,7 @@ function setDim(dim) {
   document.getElementById('c4').style.display = is2 ? 'none' : '';
   document.getElementById('c5').style.display = is2 ? 'none' : '';
   if (!is2) { charts[1].resize(); charts[2].resize(); charts[3].resize(); charts[4].resize(); }
+  clearComHist(); comChart.resize();
   sendParams();
 }
 const DIM_DEFAULT_EXP = { 2: 6 };
@@ -1057,7 +1223,7 @@ document.getElementById('dimseg').addEventListener('click', e => {
 
 // ── Control listeners ─────────────────────────────────────────────────
 document.getElementById('use_spiking').addEventListener('change', sendParams);
-document.getElementById('slow_speed').addEventListener('change', sendParams);
+document.getElementById('sim_speed').addEventListener('input', e => { document.getElementById('sim_speed_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
 document.getElementById('n_exp').addEventListener('input', e => { document.getElementById('n_val').textContent = Math.pow(2, +e.target.value); sendParams(); });
 document.getElementById('beta_E').addEventListener('input', e => { document.getElementById('beta_E_val').textContent = e.target.value; sendParams(); });
 document.getElementById('beta_I').addEventListener('input', e => { document.getElementById('beta_I_val').textContent = e.target.value; sendParams(); });
@@ -1125,7 +1291,8 @@ function restorePresets() { try { const raw = localStorage.getItem(PRESET_STORAG
 
 function loadPreset(p) {
   document.getElementById('use_spiking').checked = !!p.spiking;
-  document.getElementById('slow_speed').checked = (p.speed != null && p.speed < 1);
+  const _spd = (p.speed != null) ? Math.min(1, Math.max(0.01, p.speed)) : 1;
+  document.getElementById('sim_speed').value = _spd; document.getElementById('sim_speed_val').textContent = (+_spd).toFixed(2);
   const n_exp = Math.round(Math.log2(p.n));
   document.getElementById('n_exp').value = n_exp;
   document.getElementById('n_val').textContent = Math.pow(2, n_exp);
