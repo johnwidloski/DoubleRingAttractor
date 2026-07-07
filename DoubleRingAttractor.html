@@ -66,22 +66,25 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
   <button id="startstop" class="stopped">Start</button>
 
   <div class="ctrl-row">
-    <span class="lbl" style="min-width:auto">Spiking</span>
-    <label class="tog"><input type="checkbox" id="use_spiking" checked><span class="tog-track"></span></label>
-    <span class="lbl" style="min-width:auto; margin-left:12px">Neurons</span>
-    <input type="range" id="n_exp" min="3" max="10" step="1" value="7" style="min-width:50px">
-    <span class="sval" id="n_val">128</span>
-    <span class="lbl" style="min-width:auto; margin-left:12px">Dim</span>
+    <span class="lbl" style="min-width:auto">Dim</span>
     <div class="dimseg" id="dimseg">
       <button type="button" class="dimbtn active" data-dim="1">1D</button>
       <button type="button" class="dimbtn" data-dim="2">2D</button>
     </div>
+    <span class="lbl" style="min-width:auto; margin-left:12px">Spiking</span>
+    <label class="tog"><input type="checkbox" id="use_spiking" checked><span class="tog-track"></span></label>
+    <span class="lbl" style="min-width:auto; margin-left:12px">Neurons</span>
+    <input type="range" id="n_exp" min="3" max="10" step="1" value="7" style="min-width:50px">
+    <span class="sval" id="n_val">128</span>
   </div>
 
   <div class="ctrl-row">
     <span class="lbl" style="min-width:auto">Speed</span>
-    <input type="range" id="sim_speed" min="0.01" max="1" step="0.01" value="1">
+    <input type="range" id="sim_speed" min="0.01" max="1" step="0.01" value="1" style="min-width:50px">
     <span class="sval" id="sim_speed_val">1.00</span>
+    <span class="lbl" style="min-width:auto; margin-left:12px">Window (s)</span>
+    <input type="range" id="com_window" min="0.5" max="10" step="0.5" value="2" style="min-width:50px">
+    <span class="sval" id="com_window_val">2.0</span>
   </div>
 
   <div>
@@ -90,11 +93,6 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
       <thead><tr><th></th><th colspan="2">Width</th><th colspan="2">Amplitude</th><th>Invert</th><th>Binarize</th></tr></thead>
       <tbody id="wtbody"></tbody>
     </table>
-    <div class="ctrl-row" style="margin-top: 6px;">
-      <span class="lbl">envelope</span>
-      <input type="range" id="sig_env" min="0" max="1" step="0.001" value="1.000">
-      <span class="sval" id="sig_env_v">10.0</span>
-    </div>
   </div>
 
   <div>
@@ -103,11 +101,6 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
       <thead><tr><th></th><th colspan="2">Width</th><th colspan="2">Amplitude</th><th>Invert</th><th>Binarize</th></tr></thead>
       <tbody id="wtbody_cross"></tbody>
     </table>
-    <div class="ctrl-row" style="margin-top: 6px;">
-      <span class="lbl">envelope</span>
-      <input type="range" id="sig_env_cross" min="0" max="1" step="0.001" value="1.000">
-      <span class="sval" id="sig_env_cross_v">10.0</span>
-    </div>
   </div>
 
   <div>
@@ -123,19 +116,11 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
   </div>
 
   <div>
-    <div class="sec-title">Velocity Gain</div>
-    <div class="ctrl-row">
-      <span class="lbl" style="min-width:auto">β_vel</span>
-      <input type="range" id="beta_vel" min="0" max="10" step="0.1" value="0" style="min-width:50px">
-      <span class="sval" id="beta_vel_val">0.00</span>
-    </div>
-  </div>
-
-  <div>
-    <div class="sec-title">Adaptation</div>
-    <div class="ctrl-row">
+    <div class="sec-title" style="display:flex; align-items:center; gap:8px;">Adaptation
       <label class="tog"><input type="checkbox" id="use_adapt"><span class="tog-track"></span></label>
-      <span class="lbl" style="min-width:auto; margin-left:8px; font-size:12px">Amplitude</span>
+    </div>
+    <div class="ctrl-row">
+      <span class="lbl" style="min-width:auto; font-size:12px">Amplitude</span>
       <input type="range" id="amp_a" min="0" max="20" step="0.1" value="1" style="min-width:50px">
       <span class="sval" id="amp_a_val" style="min-width:auto">1</span>
       <span class="lbl" style="min-width:auto; margin-left:12px; font-size:12px">Time constant (s)</span>
@@ -145,48 +130,50 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
   </div>
 
   <div>
-    <div class="sec-title">Resetting</div>
-    <div class="ctrl-row">
+    <div class="sec-title" style="display:flex; align-items:center; gap:8px;">Place input
       <label class="tog"><input type="checkbox" id="use_reset"><span class="tog-track"></span></label>
-      <span class="lbl" style="min-width:auto; margin-left:8px; font-size:12px">Width</span>
+    </div>
+    <div class="ctrl-row" style="margin-bottom:11px;">
+      <span class="lbl" style="min-width:auto; font-size:12px">Velocity (ring/s)</span>
+      <input type="range" id="pulse_vel" min="-0.2" max="0.2" step="0.005" value="0" style="min-width:50px">
+      <span class="sval" id="pulse_vel_val" style="min-width:auto">0.00</span>
+      <span class="lbl" style="min-width:auto; margin-left:12px; font-size:12px">Gain (β_vel)</span>
+      <input type="range" id="beta_vel" min="0" max="10" step="0.1" value="0" style="min-width:50px">
+      <span class="sval" id="beta_vel_val" style="min-width:auto">0.00</span>
+    </div>
+    <div class="ctrl-row" style="margin-bottom:11px;">
+      <span class="lbl" style="min-width:auto; font-size:12px">Width</span>
       <input type="range" id="pulse_sig" min="0.01" max="0.1" step="0.005" value="0.0625" style="min-width:50px">
       <span class="sval" id="pulse_sig_val" style="min-width:auto">0.063</span>
       <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Amplitude</span>
       <input type="range" id="pulse_amp" min="0" max="1000" step="10" value="500" style="min-width:50px">
       <span class="sval" id="pulse_amp_val" style="min-width:auto">500</span>
     </div>
-    <div class="ctrl-row" style="margin-left: 40px;">
-      <span class="lbl" style="min-width:auto; font-size:12px">Silence (ms)</span>
-      <input type="range" id="silence_dur" min="0" max="200" step="10" value="200" style="min-width:50px">
-      <span class="sval" id="silence_dur_val" style="min-width:auto">200</span>
-      <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Duration (ms)</span>
-      <input type="range" id="pulse_dur" min="10" max="200" step="10" value="50" style="min-width:50px">
-      <span class="sval" id="pulse_dur_val" style="min-width:auto">50</span>
-      <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Interval (s)</span>
-      <input type="range" id="t_reset" min="0" max="2" step="0.1" value="2" style="min-width:50px">
-      <span class="sval" id="t_reset_val" style="min-width:auto">2.0</span>
-    </div>
-    <div class="ctrl-row" style="margin-left: 40px;">
-      <span class="lbl" style="min-width:auto; font-size:12px">Velocity (ring/s)</span>
-      <input type="range" id="pulse_vel" min="-0.2" max="0.2" step="0.005" value="0" style="min-width:50px">
-      <span class="sval" id="pulse_vel_val" style="min-width:auto">0.00</span>
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:11px;">
+      <div style="flex:0 0 48%;">
+        <canvas id="reset_win" style="width:100%; height:34px; display:block; cursor:pointer; background:#ffffff; border:1px solid #30363d; border-radius:4px;"></canvas>
+      </div>
+      <div style="flex:1; min-width:0;">
+        <div class="ctrl-row" style="margin:0; min-width:0;">
+          <span class="lbl" style="min-width:auto; font-size:12px">Interval (s)</span>
+          <input type="range" id="t_reset" min="0" max="2" step="0.1" value="2" style="min-width:0;">
+          <span class="sval" id="t_reset_val" style="min-width:auto">2.0</span>
+        </div>
+        <div style="display:flex; gap:10px; font-size:11px; color:#8b949e; margin-top:4px;">
+          <span><span style="display:inline-block;width:9px;height:9px;background:rgba(60,110,230,0.55);vertical-align:middle;"></span> internal (active)</span>
+          <span><span style="display:inline-block;width:9px;height:9px;background:rgba(214,60,60,0.55);vertical-align:middle;"></span> place (input on)</span>
+        </div>
+      </div>
     </div>
   </div>
 
   <div>
-    <div class="sec-title">Bump Center</div>
-    <div class="ctrl-row">
-      <span class="lbl" style="min-width:auto">Window (s)</span>
-      <input type="range" id="com_window" min="0.5" max="10" step="0.5" value="2" style="min-width:50px">
-      <span class="sval" id="com_window_val">2.0</span>
-    </div>
+    <div class="sec-title">Tracking</div>
     <div class="ctrl-row">
       <span class="lbl" style="min-width:auto">Min concentration</span>
       <input type="range" id="com_conc" min="0" max="1" step="0.01" value="0" style="min-width:50px">
       <span class="sval" id="com_conc_val">0.00</span>
-    </div>
-    <div class="ctrl-row">
-      <span class="lbl" style="min-width:auto">Min mean rate</span>
+      <span class="lbl" style="min-width:auto; margin-left:12px">Min mean rate</span>
       <input type="range" id="com_rate" min="0" max="2" step="0.01" value="0" style="min-width:50px">
       <span class="sval" id="com_rate_val">0.00</span>
     </div>
@@ -327,8 +314,9 @@ let G_EA, G_IA, G_EB, G_IB;
 let a_EA, a_EB, g_adapt_A, g_adapt_B;
 let pulseBlob;
 let pulsePos = 0.5;
-let resetElapsed = 0, silenceRemaining = 0, pulseRemaining = 0;
+let resetElapsed = 0;
 let simTime = 0;
+let mIntLast = 1, mPlaceLast = 0;
 let cosTab = null, sinTab = null;
 let running = false, pendingParams = null, paramsDirty = false;
 
@@ -396,32 +384,24 @@ function computeWeightFT2(w, L) {
 function initWeights(p) {
   const crossMap = [['EE','cEE'],['EI','cEI'],['IE','cIE'],['II','cII']];
   if (D === 2) {
-    const env = makeWeightVec2D(L, p.sig_env, 1.0, false, false);
     for (const nm of ['EE','EI','IE','II']) {
       const vec = makeWeightVec2D(L, p['sig_'+nm], p['amp_'+nm], p['inv_'+nm], p['bin_'+nm]);
-      for (let k = 0; k < vec.length; k++) vec[k] *= env[k];
       const ft = computeWeightFT2(vec, L);
       wFT[nm] = { re: ft.re, im: ft.im, vec };
     }
-    const envc = makeWeightVec2D(L, p.sig_env_cross, 1.0, false, false);
     for (const [nm, pid] of crossMap) {
       const vec = makeWeightVec2D(L, p['sig_'+pid], p['amp_'+pid], p['inv_'+pid], p['bin_'+pid]);
-      for (let k = 0; k < vec.length; k++) vec[k] *= envc[k];
       const ft = computeWeightFT2(vec, L);
       wFT_cross[nm] = { re: ft.re, im: ft.im, vec };
     }
   } else {
-    const env = makeWeightVec(N, p.sig_env, 1.0, false, false);
     for (const nm of ['EE','EI','IE','II']) {
       const vec = makeWeightVec(N, p['sig_'+nm], p['amp_'+nm], p['inv_'+nm], p['bin_'+nm]);
-      for (let i = 0; i < N; i++) vec[i] *= env[i];
       const ft = computeWeightFT(vec);
       wFT[nm] = { re: ft.re, im: ft.im, vec };
     }
-    const envc = makeWeightVec(N, p.sig_env_cross, 1.0, false, false);
     for (const [nm, pid] of crossMap) {
       const vec = makeWeightVec(N, p['sig_'+pid], p['amp_'+pid], p['inv_'+pid], p['bin_'+pid]);
-      for (let i = 0; i < N; i++) vec[i] *= envc[i];
       const ft = computeWeightFT(vec);
       wFT_cross[nm] = { re: ft.re, im: ft.im, vec };
     }
@@ -487,8 +467,6 @@ function allocBuffers(n) {
   buildPulseBlob();
   simTime = 0;
   resetElapsed = 0;
-  silenceRemaining = params ? params.silence_dur : SILENCE_DUR;
-  pulseRemaining = params ? params.pulse_dur : PULSE_DUR;
 }
 
 function applyParams(p) {
@@ -536,6 +514,11 @@ function poissonSample(lam) {
   return k - 1;
 }
 
+function inWindow(p, on, off) {
+  if (on === off) return false;
+  return (on < off) ? (p >= on && p < off) : (p >= on || p < off);
+}
+
 function circCoM1D(r) {
   let sx = 0, sy = 0, sum = 0;
   for (let i = 0; i < N; i++) { sx += r[i]*cosTab[i]; sy += r[i]*sinTab[i]; sum += r[i]; }
@@ -562,36 +545,23 @@ function tick() {
 
   for (let s = 0; s < steps; s++) {
     simTime += dt;
+    // Two periodic 0/1 multipliers gated by windows (fractions of the cycle, wrap allowed):
+    //   m_int   = 0 inside the silence window (suppresses internal drive), else 1
+    //   m_place = 1 inside the place  window (gates the feedforward place input), else 0
+    // Continuous animal position: advances every step (smooth trajectory),
+    // independent of the cycle. Flat at the middle when velocity = 0.
+    pulsePos = ((pulsePos + velocity * dt) % 1 + 1) % 1;
+    let mInt = 1, mPlace = 0;
     if (resetOn) {
       resetElapsed += dt;
-      if (resetElapsed >= tReset) {
-        if (velocity === 0) pulsePos = 0.5;          // no drift: always reset at the middle
-        else pulsePos += velocity * resetElapsed;   // use actual elapsed time (works when interval=0)
-        buildPulseBlob();
-        silenceRemaining = params.silence_dur;
-        pulseRemaining = params.pulse_dur;
-        resetElapsed = 0;
-      }
+      const eT = Math.max(tReset, dt);
+      if (resetElapsed >= eT) { resetElapsed -= eT; if (resetElapsed >= eT) resetElapsed = 0; }
+      const phase = resetElapsed / eT;               // 0..1 within the cycle
+      mInt   = inWindow(phase, params.sil_on, params.sil_off) ? 1 : 0;  // window marks internal-ACTIVE
+      mPlace = inWindow(phase, params.plc_on, params.plc_off) ? 1 : 0;
     }
-
-    if (silenceRemaining > 0) {
-      silenceRemaining -= dt;
-      for (let i = 0; i < N; i++) {
-        r_EA[i]=0; r_IA[i]=0; r_EB[i]=0; r_IB[i]=0;
-        g_EE_A[i]=0; g_IE_A[i]=0; g_EI_A[i]=0; g_II_A[i]=0;
-        g_EE_B[i]=0; g_IE_B[i]=0; g_EI_B[i]=0; g_II_B[i]=0;
-        cx_EE_A[i]=0; cx_IE_A[i]=0; cx_EI_A[i]=0; cx_II_A[i]=0;
-        cx_EE_B[i]=0; cx_IE_B[i]=0; cx_EI_B[i]=0; cx_II_B[i]=0;
-        G_EA[i]=0; G_IA[i]=0; G_EB[i]=0; G_IB[i]=0;
-        if (adaptOn) {
-          a_EA[i] -= a_EA[i]*dt/tauA;
-          a_EB[i] -= a_EB[i]*dt/tauA;
-        }
-      }
-      continue;
-    }
-
-    const pulsing = pulseRemaining > 0;
+    mIntLast = mInt; mPlaceLast = mPlace;
+    if (mPlace > 0) buildPulseBlob();   // inject the bump at the CURRENT (continuously moving) position
 
     // Within-ring A
     conv(r_EA, wFT.EE.re, wFT.EE.im, g_EE_A);
@@ -615,17 +585,15 @@ function tick() {
     conv(r_IA, wFT_cross.II.re, wFT_cross.II.im, cx_II_B);
 
     const bE = params.beta_E, bI = params.beta_I;
-    // Velocity gain: applied ONLY to the reset pulse. Ring A's reset is boosted for
-    // positive velocity, Ring B's suppressed; the rest of the input (recurrent, cross,
-    // beta, adaptation) is ungained.
+    // Velocity gain applies only to the place input.
     const betaVel = params.beta_vel || 0;
     const gainA = Math.max(0, 1 + betaVel * velocity);
     const gainB = Math.max(0, 1 - betaVel * velocity);
     for (let i = 0; i < N; i++) {
-      G_EA[i] = g_EE_A[i] + g_EI_A[i] + cx_EE_A[i] + cx_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0) + (pulsing ? pulseBlob[i] * gainA : 0);
-      G_IA[i] = g_IE_A[i] + g_II_A[i] + cx_IE_A[i] + cx_II_A[i] + bI;
-      G_EB[i] = g_EE_B[i] + g_EI_B[i] + cx_EE_B[i] + cx_EI_B[i] + bE - (adaptOn ? wa*a_EB[i] : 0) + (pulsing ? pulseBlob[i] * gainB : 0);
-      G_IB[i] = g_IE_B[i] + g_II_B[i] + cx_IE_B[i] + cx_II_B[i] + bI;
+      G_EA[i] = mInt*(g_EE_A[i] + g_EI_A[i] + cx_EE_A[i] + cx_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0)) + mPlace*(pulseBlob[i] * gainA);
+      G_IA[i] = mInt*(g_IE_A[i] + g_II_A[i] + cx_IE_A[i] + cx_II_A[i] + bI);
+      G_EB[i] = mInt*(g_EE_B[i] + g_EI_B[i] + cx_EE_B[i] + cx_EI_B[i] + bE - (adaptOn ? wa*a_EB[i] : 0)) + mPlace*(pulseBlob[i] * gainB);
+      G_IB[i] = mInt*(g_IE_B[i] + g_II_B[i] + cx_IE_B[i] + cx_II_B[i] + bI);
     }
     for (let i = 0; i < N; i++) {
       const fEA = G_EA[i] > 0 ? G_EA[i] : 0;
@@ -645,10 +613,9 @@ function tick() {
         a_EB[i] += sEB - a_EB[i]*dt/tauA;
       }
     }
-    if (pulsing) pulseRemaining -= dt;
     if (comSamples) {
       const ca = circCoM1D(r_EA), cb = circCoM1D(r_EB);
-      comSamples.push({ t: simTime,
+      comSamples.push({ t: simTime, pos: pulsePos,
         a: ca ? ca.y : null, ra: ca ? ca.R : 0, ma: ca ? ca.m : 0,
         b: cb ? cb.y : null, rb: cb ? cb.R : 0, mb: cb ? cb.m : 0 });
     }
@@ -689,7 +656,8 @@ function tick() {
     msg.g_EI_B = pack(g_EI_B); msg.g_II_B = pack(g_II_B);
     msg.cx_EE_B = pack(cx_EE_B); msg.cx_IE_B = pack(cx_IE_B);
     msg.cx_EI_B = pack(cx_EI_B); msg.cx_II_B = pack(cx_II_B);
-    if (silenceRemaining <= 0 && pulseRemaining > 0) {
+    msg.mInt = mIntLast;
+    if (mPlaceLast > 0) {
       const _pA = new Float64Array(N), _pB = new Float64Array(N);
       for (let i = 0; i < N; i++) { const v = pulseBlob[i]; _pA[i] = v * _gA; _pB[i] = v * _gB; }
       msg.gPulseA = pack(_pA); msg.gPulseB = pack(_pB);
@@ -744,7 +712,6 @@ const WT_CROSS_ROWS = [
   { id:'cEI', label:'cEI', sigDef:0.04, ampDef:0, ampMin:0, ampMax:50, negAmp:true,  invDef:true,  binDef:false },
   { id:'cII', label:'cII', sigDef:0.04, ampDef:0, ampMin:0, ampMax:50, negAmp:true,  invDef:true,  binDef:false },
 ];
-const SIG_ENV_DEF = 10;
 
 function buildWeightTableRows(tbody, rows) {
   for (const r of rows) {
@@ -763,6 +730,76 @@ function buildWeightTableRows(tbody, rows) {
 }
 buildWeightTableRows(document.getElementById('wtbody'), WT_ROWS);
 buildWeightTableRows(document.getElementById('wtbody_cross'), WT_CROSS_ROWS);
+
+// ── Place-input / silence window editor (2-cycle timeline) ──────────────
+// Windows stored as fractions of one reset cycle (0..1); on>off => wraps the
+// cycle boundary. Silence window gates internal drive off; place window gates
+// the feedforward place input on.
+const resetWin = { sil: { on: 0.10, off: 1.0 }, plc: { on: 0.10, off: 0.125 } };  // sil = internal-active window
+const RW = { drag: null };
+const RW_TOL = 0.04, RW_SNAP = 0.005;
+const rwCanvas = document.getElementById('reset_win');
+const rwCtx = rwCanvas.getContext('2d');
+
+function rwInWin(p, on, off) { if (on === off) return false; return (on < off) ? (p >= on && p < off) : (p >= on || p < off); }
+function rwSnapClamp(f) { f = Math.round(f / RW_SNAP) * RW_SNAP; return Math.max(0, Math.min(1, f)); }
+function rwSnapWrap(f) { f = Math.round(f / RW_SNAP) * RW_SNAP; return ((f % 1) + 1) % 1; }
+
+// Single-cycle editor: x in [0,W] maps to cycle fraction [0,1]. A window with on>off wraps the boundary.
+function rwDrawBar(w, color, W, H) {
+  rwCtx.fillStyle = color;
+  if (w.on <= w.off) rwCtx.fillRect(w.on * W, 2, (w.off - w.on) * W, H - 4);
+  else { rwCtx.fillRect(w.on * W, 2, (1 - w.on) * W, H - 4); rwCtx.fillRect(0, 2, w.off * W, H - 4); }
+  rwCtx.strokeStyle = '#444'; rwCtx.lineWidth = 2;
+  for (const f of [w.on, w.off]) { const x = f * W; rwCtx.beginPath(); rwCtx.moveTo(x, 2); rwCtx.lineTo(x, H - 2); rwCtx.stroke(); }
+}
+function drawResetWin() {
+  const r = rwCanvas.getBoundingClientRect(), W = r.width, H = r.height;
+  rwCtx.clearRect(0, 0, W, H);
+  rwCtx.fillStyle = '#ffffff'; rwCtx.fillRect(0, 0, W, H);
+  rwDrawBar(resetWin.sil, 'rgba(60,110,230,0.30)', W, H);   // internal-active = blue
+  rwDrawBar(resetWin.plc, 'rgba(214,60,60,0.30)', W, H);    // place input    = red
+  const T = +document.getElementById('t_reset').value;
+  rwCtx.fillStyle = '#555'; rwCtx.font = '10px sans-serif'; rwCtx.textBaseline = 'bottom';
+  rwCtx.textAlign = 'left';  rwCtx.fillText('0', 3, H - 1);
+  rwCtx.textAlign = 'right'; rwCtx.fillText(T.toFixed(1) + 's', W - 2, H - 1);
+}
+function rwResize() {
+  const r = rwCanvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  rwCanvas.width = Math.max(1, Math.round(r.width * dpr));
+  rwCanvas.height = Math.max(1, Math.round(r.height * dpr));
+  rwCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawResetWin();
+}
+function rwFrac(e) { const r = rwCanvas.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); }
+function rwHit(f, W) {
+  const tol = 7 / W;                          // ~7px edge grab zone (in cycle fraction)
+  let best = null, bestd = tol;
+  for (const key of ['sil', 'plc']) { const w = resetWin[key];
+    for (const part of ['on', 'off']) { const d = Math.abs(f - w[part]); if (d < bestd) { bestd = d; best = { win: key, part }; } }
+  }
+  if (best) return best;
+  for (const key of ['plc', 'sil']) { const w = resetWin[key]; if (rwInWin(f, w.on, w.off)) return { win: key, part: 'body' }; }
+  return null;
+}
+rwCanvas.addEventListener('mousedown', e => {
+  const W = rwCanvas.getBoundingClientRect().width;
+  const f = rwFrac(e), hit = rwHit(f, W); if (!hit) return;
+  const w = resetWin[hit.win];
+  RW.drag = { win: hit.win, part: hit.part, grab: f, on0: w.on, off0: w.off };
+  e.preventDefault();
+});
+window.addEventListener('mousemove', e => {
+  if (!RW.drag) return;
+  const f = rwFrac(e), w = resetWin[RW.drag.win];
+  if (RW.drag.part === 'on') w.on = rwSnapClamp(f);
+  else if (RW.drag.part === 'off') w.off = rwSnapClamp(f);
+  else { const d = f - RW.drag.grab; w.on = rwSnapWrap(RW.drag.on0 + d); w.off = rwSnapWrap(RW.drag.off0 + d); }
+  drawResetWin(); sendParams();
+});
+window.addEventListener('mouseup', () => { RW.drag = null; });
+if (window.ResizeObserver) new ResizeObserver(rwResize).observe(rwCanvas);
+rwResize();
 
 // ── Chart helpers ─────────────────────────────────────────────────────
 const BLUE = '#e06c75', RED = '#4c9be8';
@@ -850,9 +887,9 @@ function inputDatasets() {
     ds('g_IE', RED,  [3,4]), ds('g_II', RED,  []),
     ds('β_E',  BLUE, [8,4]), ds('β_I',  RED,  [8,4]),
     ds('g_a',  BLUE, [2,2,8,2]),
-    ds('cx_EE', CGREEN, []),     ds('cx_EI', CORANGE, [3,4]),
-    ds('cx_IE', CGREEN, [3,4]),  ds('cx_II', CORANGE, []),
-    ds('reset', WHITE, [6,3]),
+    ds('g_xEE', CGREEN, []),     ds('g_xEI', CORANGE, [3,4]),
+    ds('g_xIE', CGREEN, [3,4]),  ds('g_xII', CORANGE, []),
+    ds('place', WHITE, [6,3]),
   ];
 }
 const charts = [
@@ -869,7 +906,7 @@ const charts = [
 ];
 
 // Per-trace toggles for the two inputs plots; default-visible = g_a + reset only.
-const TRACE_LABELS = ['g_EE','g_EI','g_IE','g_II','β_E','β_I','g_a','cx_EE','cx_EI','cx_IE','cx_II','reset'];
+const TRACE_LABELS = ['g_EE','g_EI','g_IE','g_II','β_E','β_I','g_a','g_xEE','g_xEI','g_xIE','g_xII','place'];
 const TRACE_DEFAULT_ON = new Set([6, 11]);
 for (const ch of [charts[3], charts[4]]) {
   ch.data.datasets.forEach((dset, i) => { dset.hidden = !TRACE_DEFAULT_ON.has(i); });
@@ -895,9 +932,10 @@ buildTraceToggles('trace_row_B', charts[4]);
 
 // ── Bump center-of-mass plot (6th window) ───────────────────────────────
 const COM_A_COLOR = '#4c9be8', COM_B_COLOR = '#e06c75';   // A = blue, B = red
+const COM_POS_COLOR = '#ffffff';   // animal position (white dashed)
 let comWindowSec = 2.0;
-let comHistA = [], comHistB = [];   // records: {t, y} (1D) or {t, x, y} (2D)
-function clearComHist() { comHistA = []; comHistB = []; }
+let comHistA = [], comHistB = [], comHistPos = [];   // CoM A/B records + animal position {t, f}
+function clearComHist() { comHistA = []; comHistB = []; comHistPos = []; }
 
 // Circular center of mass of a 1D rate vector -> {idx in [0,n), R in [0,1]} (null if flat).
 function circCoM(r, n) {
@@ -919,7 +957,7 @@ const comLegendPlugin = {
   id: 'comLegend',
   afterDraw(chart) {
     const { ctx, chartArea } = chart; if (!chartArea) return;
-    const items = chart.data.datasets;
+    const items = chart.data.datasets.filter(d => d.label !== 'Animal');
     ctx.save();
     ctx.font = '12px "Segoe UI", system-ui, sans-serif'; ctx.textBaseline = 'middle';
     const rowH = 16, padX = 8, padY = 5, dotR = 3, gap = 6, margin = 8;
@@ -942,6 +980,7 @@ const comChart = new Chart(document.getElementById('c6').getContext('2d'), {
   data: { datasets: [
     { label: 'Ring A', data: [], borderColor: COM_A_COLOR, backgroundColor: COM_A_COLOR, pointRadius: 2, showLine: false },
     { label: 'Ring B', data: [], borderColor: COM_B_COLOR, backgroundColor: COM_B_COLOR, pointRadius: 2, showLine: false },
+    { label: 'Animal', data: [], borderColor: COM_POS_COLOR, backgroundColor: COM_POS_COLOR, borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0, showLine: true, spanGaps: false },
   ] },
   options: {
     animation: false, responsive: true, maintainAspectRatio: false,
@@ -980,6 +1019,8 @@ function updateComChart(d) {
     while (comHistB.length && comHistB[0].t < t - comWindowSec) comHistB.shift();
     comChart.data.datasets[0].data = comHistA.map(p => ({ x: p.x, y: p.y }));
     comChart.data.datasets[1].data = comHistB.map(p => ({ x: p.x, y: p.y }));
+    while (comHistPos.length && comHistPos[0].t < t - comWindowSec) comHistPos.shift();
+    comChart.data.datasets[2].data = comHistPos.map(p => ({ x: L / 2, y: p.f * L }));
     comChart.options.scales.x.type = 'linear';
     comChart.options.scales.x.title.text = 'Bump center x (neuron)';
     comChart.options.scales.x.min = 0; comChart.options.scales.x.max = L;
@@ -992,6 +1033,15 @@ function updateComChart(d) {
     while (comHistB.length && comHistB[0].t < t - comWindowSec) comHistB.shift();
     comChart.data.datasets[0].data = comHistA.map(p => ({ x: p.t, y: p.y }));
     comChart.data.datasets[1].data = comHistB.map(p => ({ x: p.t, y: p.y }));
+    while (comHistPos.length && comHistPos[0].t < t - comWindowSec) comHistPos.shift();
+    const posData = []; let prevY = null;
+    for (const pp of comHistPos) {
+      const y = pp.f * n;
+      if (prevY !== null && Math.abs(y - prevY) > n / 2) posData.push({ x: pp.t, y: null });  // break line at ring wrap
+      posData.push({ x: pp.t, y });
+      prevY = y;
+    }
+    comChart.data.datasets[2].data = posData;
     comChart.options.scales.x.title.text = 'Time (s)';
     comChart.options.scales.x.min = t - comWindowSec; comChart.options.scales.x.max = t;
     comChart.options.scales.y.title.text = 'Bump center (neuron)';
@@ -1092,17 +1142,20 @@ function updateCharts(d) {
     charts[2].update('none');
     // Inputs plots: only the reset is gained (matches the model); everything else ungained.
     // order: g_EE, g_EI, g_IE, g_II, β_E, β_I, g_a, cx_EE, cx_EI, cx_IE, cx_II, reset
+    // internal terms gated by m_int (honest under silence); place input already gated/gained
+    const mi = (d.mInt != null) ? d.mInt : 1;
+    const sc = arr => (mi === 1 ? arr : arr.map(x => x * mi));
     const inA = [
-      d.g_EE_A, d.g_EI_A, d.g_IE_A, d.g_II_A,
-      new Array(d.n).fill(d.beta_E), new Array(d.n).fill(d.beta_I),
-      d.adapt ? d.g_adapt_A : [],
-      d.cx_EE_A, d.cx_EI_A, d.cx_IE_A, d.cx_II_A, d.gPulseA,
+      sc(d.g_EE_A), sc(d.g_EI_A), sc(d.g_IE_A), sc(d.g_II_A),
+      new Array(d.n).fill(d.beta_E * mi), new Array(d.n).fill(d.beta_I * mi),
+      d.adapt ? sc(d.g_adapt_A) : [],
+      sc(d.cx_EE_A), sc(d.cx_EI_A), sc(d.cx_IE_A), sc(d.cx_II_A), d.gPulseA,
     ];
     const inB = [
-      d.g_EE_B, d.g_EI_B, d.g_IE_B, d.g_II_B,
-      new Array(d.n).fill(d.beta_E), new Array(d.n).fill(d.beta_I),
-      d.adapt ? d.g_adapt_B : [],
-      d.cx_EE_B, d.cx_EI_B, d.cx_IE_B, d.cx_II_B, d.gPulseB,
+      sc(d.g_EE_B), sc(d.g_EI_B), sc(d.g_IE_B), sc(d.g_II_B),
+      new Array(d.n).fill(d.beta_E * mi), new Array(d.n).fill(d.beta_I * mi),
+      d.adapt ? sc(d.g_adapt_B) : [],
+      sc(d.cx_EE_B), sc(d.cx_EI_B), sc(d.cx_IE_B), sc(d.cx_II_B), d.gPulseB,
     ];
     for (let i = 0; i < inA.length; i++) charts[3].data.datasets[i].data = inA[i];
     for (let i = 0; i < inB.length; i++) charts[4].data.datasets[i].data = inB[i];
@@ -1135,6 +1188,7 @@ worker.onmessage = e => {
   if (cs) for (const s of cs) {
     if (s.a !== null && s.ra >= comConc && s.ma >= comRate) comHistA.push({ t: s.t, y: s.a });
     if (s.b !== null && s.rb >= comConc && s.mb >= comRate) comHistB.push({ t: s.t, y: s.b });
+    if (s.pos != null) comHistPos.push({ t: s.t, f: s.pos });
   }
 };
 (function renderLoop() { if (pendingUpdate) { updateCharts(pendingUpdate); pendingUpdate = null; } requestAnimationFrame(renderLoop); })();
@@ -1149,8 +1203,6 @@ function getParams() {
     spiking: document.getElementById('use_spiking').checked,
     beta_E:  +document.getElementById('beta_E').value,
     beta_I:  +document.getElementById('beta_I').value,
-    sig_env: sliderToSig(+document.getElementById('sig_env').value),
-    sig_env_cross: sliderToSig(+document.getElementById('sig_env_cross').value),
     adapt:   document.getElementById('use_adapt').checked,
     w_a:     +document.getElementById('amp_a').value,
     tau_a:   +document.getElementById('tau_a').value,
@@ -1158,8 +1210,8 @@ function getParams() {
     t_reset: +document.getElementById('t_reset').value,
     pulse_sig_frac: +document.getElementById('pulse_sig').value,
     pulse_amp:      +document.getElementById('pulse_amp').value,
-    pulse_dur:      +document.getElementById('pulse_dur').value / 1000,
-    silence_dur:    +document.getElementById('silence_dur').value / 1000,
+    sil_on: resetWin.sil.on, sil_off: resetWin.sil.off, sil_active: true,
+    plc_on: resetWin.plc.on, plc_off: resetWin.plc.off,
     velocity:       +document.getElementById('pulse_vel').value,
     beta_vel:       +document.getElementById('beta_vel').value,
   };
@@ -1228,17 +1280,13 @@ document.getElementById('n_exp').addEventListener('input', e => { document.getEl
 document.getElementById('beta_E').addEventListener('input', e => { document.getElementById('beta_E_val').textContent = e.target.value; sendParams(); });
 document.getElementById('beta_I').addEventListener('input', e => { document.getElementById('beta_I_val').textContent = e.target.value; sendParams(); });
 document.getElementById('beta_vel').addEventListener('input', e => { document.getElementById('beta_vel_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
-document.getElementById('sig_env').addEventListener('input', e => { document.getElementById('sig_env_v').textContent = fmtSig(sliderToSig(+e.target.value)); sendParams(); });
-document.getElementById('sig_env_cross').addEventListener('input', e => { document.getElementById('sig_env_cross_v').textContent = fmtSig(sliderToSig(+e.target.value)); sendParams(); });
 document.getElementById('use_adapt').addEventListener('change', sendParams);
 document.getElementById('amp_a').addEventListener('input', e => { document.getElementById('amp_a_val').textContent = e.target.value; sendParams(); });
 document.getElementById('tau_a').addEventListener('input', e => { document.getElementById('tau_a_val').textContent = (+e.target.value).toFixed(1); sendParams(); });
 document.getElementById('use_reset').addEventListener('change', sendParams);
-document.getElementById('t_reset').addEventListener('input', e => { document.getElementById('t_reset_val').textContent = (+e.target.value).toFixed(1); sendParams(); });
+document.getElementById('t_reset').addEventListener('input', e => { document.getElementById('t_reset_val').textContent = (+e.target.value).toFixed(1); drawResetWin(); sendParams(); });
 document.getElementById('pulse_sig').addEventListener('input', e => { document.getElementById('pulse_sig_val').textContent = (+e.target.value).toFixed(3); sendParams(); });
 document.getElementById('pulse_amp').addEventListener('input', e => { document.getElementById('pulse_amp_val').textContent = e.target.value; sendParams(); });
-document.getElementById('pulse_dur').addEventListener('input', e => { document.getElementById('pulse_dur_val').textContent = e.target.value; sendParams(); });
-document.getElementById('silence_dur').addEventListener('input', e => { document.getElementById('silence_dur_val').textContent = e.target.value; sendParams(); });
 document.getElementById('pulse_vel').addEventListener('input', e => { document.getElementById('pulse_vel_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
 
 for (const r of [...WT_ROWS, ...WT_CROSS_ROWS]) {
@@ -1298,10 +1346,6 @@ function loadPreset(p) {
   document.getElementById('n_val').textContent = Math.pow(2, n_exp);
   document.getElementById('beta_E').value = p.beta_E; document.getElementById('beta_E_val').textContent = p.beta_E;
   document.getElementById('beta_I').value = p.beta_I; document.getElementById('beta_I_val').textContent = p.beta_I;
-  document.getElementById('sig_env').value = sigToSlider(p.sig_env).toFixed(3);
-  document.getElementById('sig_env_v').textContent = fmtSig(p.sig_env);
-  document.getElementById('sig_env_cross').value = sigToSlider(p.sig_env_cross || SIG_ENV_DEF).toFixed(3);
-  document.getElementById('sig_env_cross_v').textContent = fmtSig(p.sig_env_cross || SIG_ENV_DEF);
   document.getElementById('use_adapt').checked = !!p.adapt;
   const wa = p.w_a != null ? p.w_a : 1;
   document.getElementById('amp_a').value = wa; document.getElementById('amp_a_val').textContent = wa;
@@ -1314,10 +1358,21 @@ function loadPreset(p) {
   document.getElementById('pulse_sig').value = psig; document.getElementById('pulse_sig_val').textContent = (+psig).toFixed(3);
   const pamp = p.pulse_amp != null ? p.pulse_amp : 500;
   document.getElementById('pulse_amp').value = pamp; document.getElementById('pulse_amp_val').textContent = pamp;
-  const pdurMs = Math.round((p.pulse_dur != null ? p.pulse_dur : 0.050) * 1000);
-  document.getElementById('pulse_dur').value = pdurMs; document.getElementById('pulse_dur_val').textContent = pdurMs;
-  const sdurMs = Math.round((p.silence_dur != null ? p.silence_dur : 0.5) * 1000);
-  document.getElementById('silence_dur').value = sdurMs; document.getElementById('silence_dur_val').textContent = sdurMs;
+  if (p.sil_on != null) {
+    // sil window now means "internal ACTIVE". Presets saved before the inversion
+    // (no sil_active flag) stored the SILENCE window -> load its complement (swap edges).
+    if (p.sil_active) { resetWin.sil.on = p.sil_on; resetWin.sil.off = p.sil_off; }
+    else { resetWin.sil.on = p.sil_off; resetWin.sil.off = p.sil_on; }
+    resetWin.plc.on = p.plc_on; resetWin.plc.off = p.plc_off;
+  } else {
+    // older presets stored silence_dur/pulse_dur (s) anchored at cycle start
+    const T = (p.t_reset != null && p.t_reset > 0) ? p.t_reset : 2;
+    const s = (p.silence_dur != null ? p.silence_dur : 0) / T;
+    const d = (p.pulse_dur != null ? p.pulse_dur : 0) / T;
+    resetWin.sil.on = Math.min(1, s); resetWin.sil.off = 1.0;   // internal active = complement of [0,s) silence
+    resetWin.plc.on = Math.min(1, s); resetWin.plc.off = Math.min(1, s + d);
+  }
+  drawResetWin();
   const vel = p.velocity != null ? p.velocity : 0;
   document.getElementById('pulse_vel').value = vel; document.getElementById('pulse_vel_val').textContent = (+vel).toFixed(2);
   const bvel = p.beta_vel != null ? p.beta_vel : 0;
