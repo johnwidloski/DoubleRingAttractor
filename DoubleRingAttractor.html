@@ -66,6 +66,14 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
   <button id="startstop" class="stopped">Start</button>
 
   <div class="ctrl-row">
+    <span class="lbl" style="min-width:auto">Rings</span>
+    <div class="dimseg" id="ringseg">
+      <button type="button" class="dimbtn" data-rings="1">1 ring</button>
+      <button type="button" class="dimbtn active" data-rings="2">2 rings</button>
+    </div>
+  </div>
+
+  <div class="ctrl-row">
     <span class="lbl" style="min-width:auto">Dim</span>
     <div class="dimseg" id="dimseg">
       <button type="button" class="dimbtn active" data-dim="1">1D</button>
@@ -95,7 +103,7 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
     </table>
   </div>
 
-  <div>
+  <div id="cross-section">
     <div class="sec-title">Cross-ring Weights</div>
     <table class="wt">
       <thead><tr><th></th><th colspan="2">Width</th><th colspan="2">Amplitude</th><th>Invert</th><th>Binarize</th></tr></thead>
@@ -143,7 +151,7 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
     </div>
     <div class="ctrl-row" style="margin-bottom:11px;">
       <span class="lbl" style="min-width:auto; font-size:12px">Width</span>
-      <input type="range" id="pulse_sig" min="0.01" max="0.1" step="0.005" value="0.0625" style="min-width:50px">
+      <input type="range" id="pulse_sig" min="0.01" max="0.5" step="0.005" value="0.0625" style="min-width:50px">
       <span class="sval" id="pulse_sig_val" style="min-width:auto">0.063</span>
       <span class="lbl" style="min-width:auto; margin-left:10px; font-size:12px">Amplitude</span>
       <input type="range" id="pulse_amp" min="0" max="1000" step="10" value="500" style="min-width:50px">
@@ -168,7 +176,9 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
   </div>
 
   <div>
-    <div class="sec-title">Tracking</div>
+    <div class="sec-title" style="display:flex; align-items:center; gap:8px;">Tracking
+      <label class="tog"><input type="checkbox" id="show_com" checked><span class="tog-track"></span></label>
+    </div>
     <div class="ctrl-row">
       <span class="lbl" style="min-width:auto">Min concentration</span>
       <input type="range" id="com_conc" min="0" max="1" step="0.01" value="0" style="min-width:50px">
@@ -535,13 +545,14 @@ function tick() {
   if (!r_EA) { setTimeout(tick, 10); return; }
 
   const sp = params.spiking;
+  const single = params.rings === 1;   // skip ring B + cross-ring compute entirely in single-ring mode
   const adaptOn = params.adapt, wa = params.w_a, tauA = params.tau_a;
   const resetOn = params.reset, tReset = params.t_reset;
   const velocity = params.velocity || 0;
   const conv = D === 2 ? circConvInto2D : circConvInto;
   const baseSteps = D === 2 ? STEPS_2D : STEPS_PER_TICK;
   const steps = Math.max(1, Math.round(baseSteps * (params.speed || 1)));
-  const comSamples = (D < 2) ? [] : null;   // per-step E-bump CoM (1D only)
+  const comSamples = (D < 2) ? [] : null;   // per-step samples: animal pos always; bump CoM only when tracking on
 
   for (let s = 0; s < steps; s++) {
     simTime += dt;
@@ -568,53 +579,73 @@ function tick() {
     conv(r_EA, wFT.IE.re, wFT.IE.im, g_IE_A);
     conv(r_IA, wFT.EI.re, wFT.EI.im, g_EI_A);
     conv(r_IA, wFT.II.re, wFT.II.im, g_II_A);
-    // Within-ring B
-    conv(r_EB, wFT.EE.re, wFT.EE.im, g_EE_B);
-    conv(r_EB, wFT.IE.re, wFT.IE.im, g_IE_B);
-    conv(r_IB, wFT.EI.re, wFT.EI.im, g_EI_B);
-    conv(r_IB, wFT.II.re, wFT.II.im, g_II_B);
-    // Cross B → A
-    conv(r_EB, wFT_cross.EE.re, wFT_cross.EE.im, cx_EE_A);
-    conv(r_EB, wFT_cross.IE.re, wFT_cross.IE.im, cx_IE_A);
-    conv(r_IB, wFT_cross.EI.re, wFT_cross.EI.im, cx_EI_A);
-    conv(r_IB, wFT_cross.II.re, wFT_cross.II.im, cx_II_A);
-    // Cross A → B
-    conv(r_EA, wFT_cross.EE.re, wFT_cross.EE.im, cx_EE_B);
-    conv(r_EA, wFT_cross.IE.re, wFT_cross.IE.im, cx_IE_B);
-    conv(r_IA, wFT_cross.EI.re, wFT_cross.EI.im, cx_EI_B);
-    conv(r_IA, wFT_cross.II.re, wFT_cross.II.im, cx_II_B);
+    if (!single) {
+      // Within-ring B
+      conv(r_EB, wFT.EE.re, wFT.EE.im, g_EE_B);
+      conv(r_EB, wFT.IE.re, wFT.IE.im, g_IE_B);
+      conv(r_IB, wFT.EI.re, wFT.EI.im, g_EI_B);
+      conv(r_IB, wFT.II.re, wFT.II.im, g_II_B);
+      // Cross B → A
+      conv(r_EB, wFT_cross.EE.re, wFT_cross.EE.im, cx_EE_A);
+      conv(r_EB, wFT_cross.IE.re, wFT_cross.IE.im, cx_IE_A);
+      conv(r_IB, wFT_cross.EI.re, wFT_cross.EI.im, cx_EI_A);
+      conv(r_IB, wFT_cross.II.re, wFT_cross.II.im, cx_II_A);
+      // Cross A → B
+      conv(r_EA, wFT_cross.EE.re, wFT_cross.EE.im, cx_EE_B);
+      conv(r_EA, wFT_cross.IE.re, wFT_cross.IE.im, cx_IE_B);
+      conv(r_IA, wFT_cross.EI.re, wFT_cross.EI.im, cx_EI_B);
+      conv(r_IA, wFT_cross.II.re, wFT_cross.II.im, cx_II_B);
+    }
 
     const bE = params.beta_E, bI = params.beta_I;
     // Velocity gain applies only to the place input.
     const betaVel = params.beta_vel || 0;
     const gainA = Math.max(0, 1 + betaVel * velocity);
     const gainB = Math.max(0, 1 - betaVel * velocity);
-    for (let i = 0; i < N; i++) {
-      G_EA[i] = mInt*(g_EE_A[i] + g_EI_A[i] + cx_EE_A[i] + cx_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0)) + mPlace*(pulseBlob[i] * gainA);
-      G_IA[i] = mInt*(g_IE_A[i] + g_II_A[i] + cx_IE_A[i] + cx_II_A[i] + bI);
-      G_EB[i] = mInt*(g_EE_B[i] + g_EI_B[i] + cx_EE_B[i] + cx_EI_B[i] + bE - (adaptOn ? wa*a_EB[i] : 0)) + mPlace*(pulseBlob[i] * gainB);
-      G_IB[i] = mInt*(g_IE_B[i] + g_II_B[i] + cx_IE_B[i] + cx_II_B[i] + bI);
-    }
-    for (let i = 0; i < N; i++) {
-      const fEA = G_EA[i] > 0 ? G_EA[i] : 0;
-      const fIA = G_IA[i] > 0 ? G_IA[i] : 0;
-      const fEB = G_EB[i] > 0 ? G_EB[i] : 0;
-      const fIB = G_IB[i] > 0 ? G_IB[i] : 0;
-      const sEA = sp ? poissonSample(fEA*dt) : fEA*dt;
-      const sIA = sp ? poissonSample(fIA*dt) : fIA*dt;
-      const sEB = sp ? poissonSample(fEB*dt) : fEB*dt;
-      const sIB = sp ? poissonSample(fIB*dt) : fIB*dt;
-      r_EA[i] += sEA - r_EA[i]*dt/tau_s;
-      r_IA[i] += sIA - r_IA[i]*dt/tau_s;
-      r_EB[i] += sEB - r_EB[i]*dt/tau_s;
-      r_IB[i] += sIB - r_IB[i]*dt/tau_s;
-      if (adaptOn) {
-        a_EA[i] += sEA - a_EA[i]*dt/tauA;
-        a_EB[i] += sEB - a_EB[i]*dt/tauA;
+    if (single) {
+      // Ring A only (no cross terms, ring B frozen)
+      for (let i = 0; i < N; i++) {
+        G_EA[i] = mInt*(g_EE_A[i] + g_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0)) + mPlace*(pulseBlob[i] * gainA);
+        G_IA[i] = mInt*(g_IE_A[i] + g_II_A[i] + bI);
+      }
+      for (let i = 0; i < N; i++) {
+        const fEA = G_EA[i] > 0 ? G_EA[i] : 0;
+        const fIA = G_IA[i] > 0 ? G_IA[i] : 0;
+        const sEA = sp ? poissonSample(fEA*dt) : fEA*dt;
+        const sIA = sp ? poissonSample(fIA*dt) : fIA*dt;
+        r_EA[i] += sEA - r_EA[i]*dt/tau_s;
+        r_IA[i] += sIA - r_IA[i]*dt/tau_s;
+        if (adaptOn) a_EA[i] += sEA - a_EA[i]*dt/tauA;
+      }
+    } else {
+      for (let i = 0; i < N; i++) {
+        G_EA[i] = mInt*(g_EE_A[i] + g_EI_A[i] + cx_EE_A[i] + cx_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0)) + mPlace*(pulseBlob[i] * gainA);
+        G_IA[i] = mInt*(g_IE_A[i] + g_II_A[i] + cx_IE_A[i] + cx_II_A[i] + bI);
+        G_EB[i] = mInt*(g_EE_B[i] + g_EI_B[i] + cx_EE_B[i] + cx_EI_B[i] + bE - (adaptOn ? wa*a_EB[i] : 0)) + mPlace*(pulseBlob[i] * gainB);
+        G_IB[i] = mInt*(g_IE_B[i] + g_II_B[i] + cx_IE_B[i] + cx_II_B[i] + bI);
+      }
+      for (let i = 0; i < N; i++) {
+        const fEA = G_EA[i] > 0 ? G_EA[i] : 0;
+        const fIA = G_IA[i] > 0 ? G_IA[i] : 0;
+        const fEB = G_EB[i] > 0 ? G_EB[i] : 0;
+        const fIB = G_IB[i] > 0 ? G_IB[i] : 0;
+        const sEA = sp ? poissonSample(fEA*dt) : fEA*dt;
+        const sIA = sp ? poissonSample(fIA*dt) : fIA*dt;
+        const sEB = sp ? poissonSample(fEB*dt) : fEB*dt;
+        const sIB = sp ? poissonSample(fIB*dt) : fIB*dt;
+        r_EA[i] += sEA - r_EA[i]*dt/tau_s;
+        r_IA[i] += sIA - r_IA[i]*dt/tau_s;
+        r_EB[i] += sEB - r_EB[i]*dt/tau_s;
+        r_IB[i] += sIB - r_IB[i]*dt/tau_s;
+        if (adaptOn) {
+          a_EA[i] += sEA - a_EA[i]*dt/tauA;
+          a_EB[i] += sEB - a_EB[i]*dt/tauA;
+        }
       }
     }
     if (comSamples) {
-      const ca = circCoM1D(r_EA), cb = circCoM1D(r_EB);
+      const ca = params.track ? circCoM1D(r_EA) : null;                 // skip bump-CoM compute when dots hidden
+      const cb = (params.track && !single) ? circCoM1D(r_EB) : null;
       comSamples.push({ t: simTime, pos: pulsePos,
         a: ca ? ca.y : null, ra: ca ? ca.R : 0, ma: ca ? ca.m : 0,
         b: cb ? cb.y : null, rb: cb ? cb.R : 0, mb: cb ? cb.m : 0 });
@@ -957,7 +988,8 @@ const comLegendPlugin = {
   id: 'comLegend',
   afterDraw(chart) {
     const { ctx, chartArea } = chart; if (!chartArea) return;
-    const items = chart.data.datasets.filter(d => d.label !== 'Animal');
+    const items = chart.data.datasets.filter(d => d.label !== 'Animal' && !d.hidden);
+    if (!items.length) return;   // no CoM series shown -> no legend box
     ctx.save();
     ctx.font = '12px "Segoe UI", system-ui, sans-serif'; ctx.textBaseline = 'middle';
     const rowH = 16, padX = 8, padY = 5, dotR = 3, gap = 6, margin = 8;
@@ -997,6 +1029,17 @@ document.getElementById('com_window').addEventListener('input', e => {
   comWindowSec = +e.target.value;
   document.getElementById('com_window_val').textContent = comWindowSec.toFixed(1);
 });
+// Tracking on/off: hides the center-of-mass plot AND stops the worker from generating its
+// per-step CoM samples (the render cost that scaled with Window size). Other plots expand.
+document.getElementById('show_com').addEventListener('change', e => {
+  showCom = e.target.checked;
+  // keep the plot (dashed animal-location line) visible; just show/hide the bump center-of-mass dots
+  comChart.data.datasets[0].hidden = !showCom;
+  comChart.data.datasets[1].hidden = !showCom || currentRings === 1;
+  clearComHist();
+  sendParams();               // worker skips the per-step bump-CoM compute when hidden
+  comChart.update('none');
+});
 let comConc = 0;
 document.getElementById('com_conc').addEventListener('input', e => {
   comConc = +e.target.value;
@@ -1008,6 +1051,18 @@ document.getElementById('com_rate').addEventListener('input', e => {
   document.getElementById('com_rate_val').textContent = comRate.toFixed(2);
 });
 
+// Build broken-line data from a CoM history: insert a null wherever the value jumps by
+// > span/2 (a ring wrap) so the line breaks cleanly at the 0<->N seam instead of streaking.
+function comLineData(hist, yof, span) {
+  const out = []; let prevY = null;
+  for (const p of hist) {
+    const y = yof(p);
+    if (prevY !== null && Math.abs(y - prevY) > span / 2) out.push({ x: p.t, y: null });
+    out.push({ x: p.t, y });
+    prevY = y;
+  }
+  return out;
+}
 function updateComChart(d) {
   const t = d.t || 0;
   if (d.dims === 2) {
@@ -1017,6 +1072,7 @@ function updateComChart(d) {
     if (cb && cb.R >= comConc && cb.m >= comRate) comHistB.push({ t, x: cb.x, y: cb.y });
     while (comHistA.length && comHistA[0].t < t - comWindowSec) comHistA.shift();
     while (comHistB.length && comHistB[0].t < t - comWindowSec) comHistB.shift();
+    for (const dset of [comChart.data.datasets[0], comChart.data.datasets[1]]) { dset.showLine = false; dset.pointRadius = 2; }  // 2D: scatter cloud
     comChart.data.datasets[0].data = comHistA.map(p => ({ x: p.x, y: p.y }));
     comChart.data.datasets[1].data = comHistB.map(p => ({ x: p.x, y: p.y }));
     while (comHistPos.length && comHistPos[0].t < t - comWindowSec) comHistPos.shift();
@@ -1031,17 +1087,13 @@ function updateComChart(d) {
     // history is filled per integration step in worker.onmessage; just trim + render
     while (comHistA.length && comHistA[0].t < t - comWindowSec) comHistA.shift();
     while (comHistB.length && comHistB[0].t < t - comWindowSec) comHistB.shift();
-    comChart.data.datasets[0].data = comHistA.map(p => ({ x: p.t, y: p.y }));
-    comChart.data.datasets[1].data = comHistB.map(p => ({ x: p.t, y: p.y }));
+    // Ring A/B as broken lines: one stroked path instead of thousands of dots (smooth at any
+    // window), with a null at each 0<->N wrap so the seam doesn't draw a vertical streak.
+    for (const dset of [comChart.data.datasets[0], comChart.data.datasets[1]]) { dset.showLine = true; dset.pointRadius = 0; dset.spanGaps = false; dset.borderWidth = 1.5; }
+    comChart.data.datasets[0].data = comLineData(comHistA, p => p.y, n);
+    comChart.data.datasets[1].data = comLineData(comHistB, p => p.y, n);
     while (comHistPos.length && comHistPos[0].t < t - comWindowSec) comHistPos.shift();
-    const posData = []; let prevY = null;
-    for (const pp of comHistPos) {
-      const y = pp.f * n;
-      if (prevY !== null && Math.abs(y - prevY) > n / 2) posData.push({ x: pp.t, y: null });  // break line at ring wrap
-      posData.push({ x: pp.t, y });
-      prevY = y;
-    }
-    comChart.data.datasets[2].data = posData;
+    comChart.data.datasets[2].data = comLineData(comHistPos, p => p.f * n, n);
     comChart.options.scales.x.title.text = 'Time (s)';
     comChart.options.scales.x.min = t - comWindowSec; comChart.options.scales.x.max = t;
     comChart.options.scales.y.title.text = 'Bump center (neuron)';
@@ -1115,18 +1167,21 @@ function updateCharts(d) {
   for (let i = 0; i < 8; i++) charts[0].data.datasets[i].data = w[i];
   charts[0].update('none');
 
+  const single = currentRings === 1;   // ring B is frozen/hidden -> exclude it from display scaling
   if (is2d) {
     let rmax = 0;
     for (let k = 0; k < d.r_EA.length; k++) {
       if (d.r_EA[k] > rmax) rmax = d.r_EA[k];
       if (d.r_IA[k] > rmax) rmax = d.r_IA[k];
-      if (d.r_EB[k] > rmax) rmax = d.r_EB[k];
-      if (d.r_IB[k] > rmax) rmax = d.r_IB[k];
+      if (!single && d.r_EB[k] > rmax) rmax = d.r_EB[k];
+      if (!single && d.r_IB[k] > rmax) rmax = d.r_IB[k];
     }
     drawHeatmap(HM.EA, d.r_EA, L, 0, rmax);
     drawHeatmap(HM.IA, d.r_IA, L, 0, rmax);
-    drawHeatmap(HM.EB, d.r_EB, L, 0, rmax);
-    drawHeatmap(HM.IB, d.r_IB, L, 0, rmax);
+    if (!single) {
+      drawHeatmap(HM.EB, d.r_EB, L, 0, rmax);
+      drawHeatmap(HM.IB, d.r_IB, L, 0, rmax);
+    }
   } else {
     charts[1].data.datasets[0].data = d.r_EA;
     charts[1].data.datasets[1].data = d.r_IA;
@@ -1134,12 +1189,12 @@ function updateCharts(d) {
     charts[2].data.datasets[1].data = d.r_IB;
     // Lock Ring A & B rate plots to a shared y-range (upper = larger of the two plots' maxima)
     let rmaxAB = 0;
-    for (const arr of [d.r_EA, d.r_IA, d.r_EB, d.r_IB])
+    for (const arr of (single ? [d.r_EA, d.r_IA] : [d.r_EA, d.r_IA, d.r_EB, d.r_IB]))
       for (let k = 0; k < arr.length; k++) if (arr[k] > rmaxAB) rmaxAB = arr[k];
     const yhiAB = rmaxAB > 0 ? rmaxAB : 1;
-    for (const ch of [charts[1], charts[2]]) { ch.options.scales.y.min = 0; ch.options.scales.y.max = yhiAB; }
+    for (const ch of (single ? [charts[1]] : [charts[1], charts[2]])) { ch.options.scales.y.min = 0; ch.options.scales.y.max = yhiAB; }
     charts[1].update('none');
-    charts[2].update('none');
+    if (!single) charts[2].update('none');
     // Inputs plots: only the reset is gained (matches the model); everything else ungained.
     // order: g_EE, g_EI, g_IE, g_II, β_E, β_I, g_a, cx_EE, cx_EI, cx_IE, cx_II, reset
     // internal terms gated by m_int (honest under silence); place input already gated/gained
@@ -1161,7 +1216,7 @@ function updateCharts(d) {
     for (let i = 0; i < inB.length; i++) charts[4].data.datasets[i].data = inB[i];
     // shared y-range over the VISIBLE traces of both inputs plots
     let ilo = Infinity, ihi = -Infinity;
-    for (const ch of [charts[3], charts[4]]) {
+    for (const ch of (single ? [charts[3]] : [charts[3], charts[4]])) {
       ch.data.datasets.forEach(dset => {
         if (dset.hidden) return;
         const arr = dset.data;
@@ -1170,9 +1225,9 @@ function updateCharts(d) {
     }
     if (!isFinite(ilo) || !isFinite(ihi) || ihi <= ilo) { ilo = 0; ihi = 1; }
     const ipad = (ihi - ilo) * 0.05;
-    for (const ch of [charts[3], charts[4]]) { ch.options.scales.y.min = ilo - ipad; ch.options.scales.y.max = ihi + ipad; }
+    for (const ch of (single ? [charts[3]] : [charts[3], charts[4]])) { ch.options.scales.y.min = ilo - ipad; ch.options.scales.y.max = ihi + ipad; }
     charts[3].update('none');
-    charts[4].update('none');
+    if (!single) charts[4].update('none');
   }
   updateComChart(d);
 }
@@ -1195,8 +1250,11 @@ worker.onmessage = e => {
 
 // ── Parameter collection ──────────────────────────────────────────────
 let currentDim = 1;
+let currentRings = 2;
+let showCom = true;
 function getParams() {
   const p = {
+    track:   document.getElementById('show_com').checked,
     speed:   +document.getElementById('sim_speed').value,
     n:       Math.pow(2, +document.getElementById('n_exp').value),
     dims:    currentDim,
@@ -1228,6 +1286,10 @@ function getParams() {
     p['amp_'+r.id] = r.negAmp ? -ampRaw : ampRaw;
     p['inv_'+r.id] = document.getElementById('inv_'+r.id).checked;
     p['bin_'+r.id] = document.getElementById('bin_'+r.id).checked;
+  }
+  p.rings = currentRings;
+  if (currentRings === 1) {
+    for (const id of ['cEE', 'cEI', 'cIE', 'cII']) p['amp_'+id] = 0;  // no cross-ring coupling with one ring
   }
   return p;
 }
@@ -1271,6 +1333,37 @@ document.getElementById('dimseg').addEventListener('click', e => {
   const exp = DIM_DEFAULT_EXP[dim];
   if (exp != null) { document.getElementById('n_exp').value = exp; document.getElementById('n_val').textContent = Math.pow(2, exp); }
   setDim(dim);
+});
+
+// ── Rings toggle (single vs double ring) ──────────────────────────────
+function setSectionDisabled(el, disabled) {
+  if (!el) return;
+  el.style.opacity = disabled ? '0.4' : '';
+  el.style.pointerEvents = disabled ? 'none' : '';
+  el.querySelectorAll('input, button').forEach(x => { x.disabled = disabled; });
+}
+function setRings(rings) {
+  currentRings = rings;
+  const single = rings === 1;
+  document.querySelectorAll('#ringseg .dimbtn').forEach(b => b.classList.toggle('active', +b.dataset.rings === rings));
+  setSectionDisabled(document.getElementById('cross-section'), single);   // cross-ring weights are meaningless with one ring
+  document.getElementById('rate-wrap-B').style.display   = single ? 'none' : '';
+  document.getElementById('inputs-wrap-B').style.display = single ? 'none' : '';
+  document.getElementById('trace_row_B').style.display   = single ? 'none' : '';
+  comChart.data.datasets[1].hidden = single || !showCom;                  // Ring B trajectory
+  charts[1].options.scales.y.title.text = single ? 'Firing rate' : 'Firing rate (A)';
+  charts[3].options.scales.y.title.text = single ? 'Inputs' : 'Inputs (A)';
+  charts[1].update('none'); charts[3].update('none');
+  charts.forEach(c => c.resize()); comChart.resize();
+  clearComHist();
+  sendParams();
+}
+document.getElementById('ringseg').addEventListener('click', e => {
+  const btn = e.target.closest('.dimbtn');
+  if (!btn) return;
+  const rings = +btn.dataset.rings;
+  if (rings === currentRings) return;
+  setRings(rings);
 });
 
 // ── Control listeners ─────────────────────────────────────────────────
@@ -1398,6 +1491,7 @@ function loadPreset(p) {
     document.getElementById('inv_'+r.id).checked = !!p['inv_'+r.id];
     document.getElementById('bin_'+r.id).checked = !!p['bin_'+r.id];
   }
+  setRings(p.rings === 1 ? 1 : 2);
   setDim(p.dims === 2 ? 2 : 1);
 }
 
