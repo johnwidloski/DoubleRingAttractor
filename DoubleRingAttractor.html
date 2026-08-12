@@ -1052,12 +1052,13 @@ document.getElementById('com_rate').addEventListener('input', e => {
 });
 
 // Build broken-line data from a CoM history: insert a null wherever the value jumps by
-// > span/2 (a ring wrap) so the line breaks cleanly at the 0<->N seam instead of streaking.
-function comLineData(hist, yof, span) {
+// > COM_JUMP_THRESH neurons (ring wrap or bump teleportation) so the line doesn't streak.
+const COM_JUMP_THRESH = 20;
+function comLineData(hist, yof) {
   const out = []; let prevY = null;
   for (const p of hist) {
     const y = yof(p);
-    if (prevY !== null && Math.abs(y - prevY) > span / 2) out.push({ x: p.t, y: null });
+    if (prevY !== null && Math.abs(y - prevY) > COM_JUMP_THRESH) out.push({ x: p.t, y: null });
     out.push({ x: p.t, y });
     prevY = y;
   }
@@ -1090,10 +1091,10 @@ function updateComChart(d) {
     // Ring A/B as broken lines: one stroked path instead of thousands of dots (smooth at any
     // window), with a null at each 0<->N wrap so the seam doesn't draw a vertical streak.
     for (const dset of [comChart.data.datasets[0], comChart.data.datasets[1]]) { dset.showLine = true; dset.pointRadius = 0; dset.spanGaps = false; dset.borderWidth = 1.5; }
-    comChart.data.datasets[0].data = comLineData(comHistA, p => p.y, n);
-    comChart.data.datasets[1].data = comLineData(comHistB, p => p.y, n);
+    comChart.data.datasets[0].data = comLineData(comHistA, p => p.y);
+    comChart.data.datasets[1].data = comLineData(comHistB, p => p.y);
     while (comHistPos.length && comHistPos[0].t < t - comWindowSec) comHistPos.shift();
-    comChart.data.datasets[2].data = comLineData(comHistPos, p => p.f * n, n);
+    comChart.data.datasets[2].data = comLineData(comHistPos, p => p.f * n);
     comChart.options.scales.x.title.text = 'Time (s)';
     comChart.options.scales.x.min = t - comWindowSec; comChart.options.scales.x.max = t;
     comChart.options.scales.y.title.text = 'Bump center (neuron)';
