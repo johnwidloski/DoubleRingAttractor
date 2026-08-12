@@ -1088,11 +1088,9 @@ function updateComChart(d) {
     // history is filled per integration step in worker.onmessage; just trim + render
     while (comHistA.length && comHistA[0].t < t - comWindowSec) comHistA.shift();
     while (comHistB.length && comHistB[0].t < t - comWindowSec) comHistB.shift();
-    // Ring A/B as broken lines: one stroked path instead of thousands of dots (smooth at any
-    // window), with a null at each 0<->N wrap so the seam doesn't draw a vertical streak.
-    for (const dset of [comChart.data.datasets[0], comChart.data.datasets[1]]) { dset.showLine = true; dset.pointRadius = 0; dset.spanGaps = false; dset.borderWidth = 1.5; }
-    comChart.data.datasets[0].data = comLineData(comHistA, p => p.y);
-    comChart.data.datasets[1].data = comLineData(comHistB, p => p.y);
+    for (const dset of [comChart.data.datasets[0], comChart.data.datasets[1]]) { dset.showLine = false; dset.pointRadius = 2; }
+    comChart.data.datasets[0].data = comHistA.map(p => ({ x: p.t, y: p.y }));
+    comChart.data.datasets[1].data = comHistB.map(p => ({ x: p.t, y: p.y }));
     while (comHistPos.length && comHistPos[0].t < t - comWindowSec) comHistPos.shift();
     comChart.data.datasets[2].data = comLineData(comHistPos, p => p.f * n);
     comChart.options.scales.x.title.text = 'Time (s)';
