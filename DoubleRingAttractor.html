@@ -157,6 +157,13 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
       <input type="range" id="pulse_amp" min="0" max="1000" step="10" value="500" style="min-width:50px">
       <span class="sval" id="pulse_amp_val" style="min-width:auto">500</span>
     </div>
+    <div class="ctrl-row" style="margin-bottom:11px;">
+      <span class="lbl" style="min-width:auto; font-size:12px">2nd bump</span>
+      <label class="tog"><input type="checkbox" id="use_pulse2"><span class="tog-track"></span></label>
+      <span class="lbl" style="min-width:auto; margin-left:12px; font-size:12px">Phase offset</span>
+      <input type="range" id="pulse2_phase" min="0" max="0.5" step="0.005" value="0.25" style="min-width:50px">
+      <span class="sval" id="pulse2_phase_val" style="min-width:auto">0.25</span>
+    </div>
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:11px;">
       <div style="flex:0 0 48%;">
         <canvas id="reset_win" style="width:100%; height:34px; display:block; cursor:pointer; background:#ffffff; border:1px solid #30363d; border-radius:4px;"></canvas>
@@ -181,11 +188,11 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
     </div>
     <div class="ctrl-row">
       <span class="lbl" style="min-width:auto">Min concentration</span>
-      <input type="range" id="com_conc" min="0" max="1" step="0.01" value="0" style="min-width:50px">
-      <span class="sval" id="com_conc_val">0.00</span>
+      <input type="range" id="com_conc" min="0" max="1" step="0.01" value="0.1" style="min-width:50px">
+      <span class="sval" id="com_conc_val">0.10</span>
       <span class="lbl" style="min-width:auto; margin-left:12px">Min mean rate</span>
-      <input type="range" id="com_rate" min="0" max="2" step="0.01" value="0" style="min-width:50px">
-      <span class="sval" id="com_rate_val">0.00</span>
+      <input type="range" id="com_rate" min="0" max="2" step="0.01" value="0.1" style="min-width:50px">
+      <span class="sval" id="com_rate_val">0.10</span>
     </div>
   </div>
 
@@ -322,8 +329,9 @@ let cx_EE_A, cx_IE_A, cx_EI_A, cx_II_A;
 let cx_EE_B, cx_IE_B, cx_EI_B, cx_II_B;
 let G_EA, G_IA, G_EB, G_IB;
 let a_EA, a_EB, g_adapt_A, g_adapt_B;
-let pulseBlob;
+let pulseBlob, pulseBlob2;
 let pulsePos = 0.5;
+let pulse2Phase = 0.25, usePulse2 = false;
 let resetElapsed = 0;
 let simTime = 0;
 let mIntLast = 1, mPlaceLast = 0;
@@ -447,6 +455,35 @@ function buildPulseBlob() {
   }
 }
 
+function buildPulseBlob2() {
+  if (!pulseBlob2) return;
+  const amp = params ? params.pulse_amp : PULSE_AMP;
+  const sigFrac = params ? params.pulse_sig_frac : PULSE_SIG_FRAC;
+  const pos = ((pulsePos + pulse2Phase) % 1 + 1) % 1;
+  if (D === 2) {
+    const cx = Math.floor(L / 2);
+    const cy = Math.round(pos * L);
+    const sig = Math.max(1, L * sigFrac);
+    for (let y = 0; y < L; y++) {
+      let dy = y - cy;
+      if (dy > L/2) dy -= L; if (dy < -L/2) dy += L;
+      for (let x = 0; x < L; x++) {
+        let dx = x - cx;
+        if (dx > L/2) dx -= L; if (dx < -L/2) dx += L;
+        pulseBlob2[y*L+x] = amp * Math.exp(-0.5*(dx*dx+dy*dy)/(sig*sig));
+      }
+    }
+  } else {
+    const center = Math.round(pos * N);
+    const sig = Math.max(1, N * sigFrac);
+    for (let i = 0; i < N; i++) {
+      let d = i - center;
+      if (d > N/2) d -= N; if (d < -N/2) d += N;
+      pulseBlob2[i] = amp * Math.exp(-0.5*(d/sig)*(d/sig));
+    }
+  }
+}
+
 function allocBuffers(n) {
   wkRe = new Float64Array(n); wkIm = new Float64Array(n);
   g_EE_A = new Float64Array(n); g_IE_A = new Float64Array(n);
@@ -464,6 +501,7 @@ function allocBuffers(n) {
   a_EA = new Float64Array(n); a_EB = new Float64Array(n);
   g_adapt_A = new Float64Array(n); g_adapt_B = new Float64Array(n);
   pulseBlob = new Float64Array(n);
+  pulseBlob2 = new Float64Array(n);
   cosTab = new Float64Array(n); sinTab = new Float64Array(n);
   for (let i = 0; i < n; i++) { const a = 2*Math.PI*i/n; cosTab[i] = Math.cos(a); sinTab[i] = Math.sin(a); }
   if (D === 2) {
@@ -488,9 +526,11 @@ function applyParams(p) {
   D = dims; L = side; N = newN;
   if (D === 2) { ftBufRe = new Float64Array(L); ftBufIm = new Float64Array(L); }
   params = p;
+  usePulse2 = !!p.use_pulse2;
+  pulse2Phase = p.pulse2_phase != null ? p.pulse2_phase : 0.25;
   initWeights(p);
   if (resize || r_EA === null) allocBuffers(N);
-  else buildPulseBlob();
+  else { buildPulseBlob(); if (usePulse2) buildPulseBlob2(); }
 }
 
 function circConvInto(sig, kRe, kIm, out) {
@@ -572,7 +612,7 @@ function tick() {
       mPlace = inWindow(phase, params.plc_on, params.plc_off) ? 1 : 0;
     }
     mIntLast = mInt; mPlaceLast = mPlace;
-    if (mPlace > 0) buildPulseBlob();   // inject the bump at the CURRENT (continuously moving) position
+    if (mPlace > 0) { buildPulseBlob(); if (usePulse2) buildPulseBlob2(); }
 
     // Within-ring A
     conv(r_EA, wFT.EE.re, wFT.EE.im, g_EE_A);
@@ -605,7 +645,7 @@ function tick() {
     if (single) {
       // Ring A only (no cross terms, ring B frozen)
       for (let i = 0; i < N; i++) {
-        G_EA[i] = mInt*(g_EE_A[i] + g_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0)) + mPlace*(pulseBlob[i] * gainA);
+        G_EA[i] = mInt*(g_EE_A[i] + g_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0)) + mPlace*(pulseBlob[i] * gainA + (usePulse2 ? pulseBlob2[i] * gainA : 0));
         G_IA[i] = mInt*(g_IE_A[i] + g_II_A[i] + bI);
       }
       for (let i = 0; i < N; i++) {
@@ -619,9 +659,9 @@ function tick() {
       }
     } else {
       for (let i = 0; i < N; i++) {
-        G_EA[i] = mInt*(g_EE_A[i] + g_EI_A[i] + cx_EE_A[i] + cx_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0)) + mPlace*(pulseBlob[i] * gainA);
+        G_EA[i] = mInt*(g_EE_A[i] + g_EI_A[i] + cx_EE_A[i] + cx_EI_A[i] + bE - (adaptOn ? wa*a_EA[i] : 0)) + mPlace*(pulseBlob[i] * gainA + (usePulse2 ? pulseBlob2[i] * gainA : 0));
         G_IA[i] = mInt*(g_IE_A[i] + g_II_A[i] + cx_IE_A[i] + cx_II_A[i] + bI);
-        G_EB[i] = mInt*(g_EE_B[i] + g_EI_B[i] + cx_EE_B[i] + cx_EI_B[i] + bE - (adaptOn ? wa*a_EB[i] : 0)) + mPlace*(pulseBlob[i] * gainB);
+        G_EB[i] = mInt*(g_EE_B[i] + g_EI_B[i] + cx_EE_B[i] + cx_EI_B[i] + bE - (adaptOn ? wa*a_EB[i] : 0)) + mPlace*(pulseBlob[i] * gainB + (usePulse2 ? pulseBlob2[i] * gainB : 0));
         G_IB[i] = mInt*(g_IE_B[i] + g_II_B[i] + cx_IE_B[i] + cx_II_B[i] + bI);
       }
       for (let i = 0; i < N; i++) {
@@ -690,7 +730,10 @@ function tick() {
     msg.mInt = mIntLast;
     if (mPlaceLast > 0) {
       const _pA = new Float64Array(N), _pB = new Float64Array(N);
-      for (let i = 0; i < N; i++) { const v = pulseBlob[i]; _pA[i] = v * _gA; _pB[i] = v * _gB; }
+      for (let i = 0; i < N; i++) {
+        const v = pulseBlob[i] + (usePulse2 ? pulseBlob2[i] : 0);
+        _pA[i] = v * _gA; _pB[i] = v * _gB;
+      }
       msg.gPulseA = pack(_pA); msg.gPulseB = pack(_pB);
     } else { msg.gPulseA = []; msg.gPulseB = []; }
     msg.G_EA = pack(G_EA); msg.G_IA = pack(G_IA);
@@ -1040,12 +1083,12 @@ document.getElementById('show_com').addEventListener('change', e => {
   sendParams();               // worker skips the per-step bump-CoM compute when hidden
   comChart.update('none');
 });
-let comConc = 0;
+let comConc = 0.1;
 document.getElementById('com_conc').addEventListener('input', e => {
   comConc = +e.target.value;
   document.getElementById('com_conc_val').textContent = comConc.toFixed(2);
 });
-let comRate = 0;
+let comRate = 0.1;
 document.getElementById('com_rate').addEventListener('input', e => {
   comRate = +e.target.value;
   document.getElementById('com_rate_val').textContent = comRate.toFixed(2);
@@ -1267,6 +1310,8 @@ function getParams() {
     t_reset: +document.getElementById('t_reset').value,
     pulse_sig_frac: +document.getElementById('pulse_sig').value,
     pulse_amp:      +document.getElementById('pulse_amp').value,
+    use_pulse2:     document.getElementById('use_pulse2').checked,
+    pulse2_phase:   +document.getElementById('pulse2_phase').value,
     sil_on: resetWin.sil.on, sil_off: resetWin.sil.off, sil_active: true,
     plc_on: resetWin.plc.on, plc_off: resetWin.plc.off,
     velocity:       +document.getElementById('pulse_vel').value,
@@ -1379,6 +1424,8 @@ document.getElementById('use_reset').addEventListener('change', sendParams);
 document.getElementById('t_reset').addEventListener('input', e => { document.getElementById('t_reset_val').textContent = (+e.target.value).toFixed(1); drawResetWin(); sendParams(); });
 document.getElementById('pulse_sig').addEventListener('input', e => { document.getElementById('pulse_sig_val').textContent = (+e.target.value).toFixed(3); sendParams(); });
 document.getElementById('pulse_amp').addEventListener('input', e => { document.getElementById('pulse_amp_val').textContent = e.target.value; sendParams(); });
+document.getElementById('use_pulse2').addEventListener('change', sendParams);
+document.getElementById('pulse2_phase').addEventListener('input', e => { document.getElementById('pulse2_phase_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
 document.getElementById('pulse_vel').addEventListener('input', e => { document.getElementById('pulse_vel_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
 
 for (const r of [...WT_ROWS, ...WT_CROSS_ROWS]) {
