@@ -64,6 +64,8 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
 
 <div id="controls">
   <button id="startstop" class="stopped">Start</button>
+  <button id="record_btn" style="width:100%;padding:6px 0;border:1px solid #30363d;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#21262d;color:#8b949e;margin-top:4px;">● Rec</button>
+  <div id="rec_status" style="font-size:12px;color:#6e7681;min-height:14px;margin-top:2px;text-align:center;"></div>
 
   <div class="ctrl-row">
     <span class="lbl" style="min-width:auto">Rings</span>
@@ -142,9 +144,10 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
       <label class="tog"><input type="checkbox" id="use_reset"><span class="tog-track"></span></label>
     </div>
     <div class="ctrl-row" style="margin-bottom:11px;">
-      <span class="lbl" style="min-width:auto; font-size:12px">Velocity (ring/s)</span>
-      <input type="range" id="pulse_vel" min="-0.2" max="0.2" step="0.005" value="0" style="min-width:50px">
-      <span class="sval" id="pulse_vel_val" style="min-width:auto">0.00</span>
+      <span class="lbl" style="min-width:auto; font-size:12px">Speed (cm/s)</span>
+      <input type="range" id="pulse_spd" min="0" max="100" step="0.5" value="0" style="min-width:50px">
+      <span class="sval" id="pulse_spd_val" style="min-width:auto">0.0</span>
+      <button id="dir_toggle" data-dir="fwd" style="margin-left:8px;padding:2px 8px;font-size:12px;border:1px solid #30363d;border-radius:4px;background:#21262d;color:#c9d1d9;cursor:pointer;">→ Fwd</button>
       <span class="lbl" style="min-width:auto; margin-left:12px; font-size:12px">Gain (β_vel)</span>
       <input type="range" id="beta_vel" min="0" max="10" step="0.1" value="0" style="min-width:50px">
       <span class="sval" id="beta_vel_val" style="min-width:auto">0.00</span>
@@ -179,6 +182,16 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
           <span><span style="display:inline-block;width:9px;height:9px;background:rgba(214,60,60,0.55);vertical-align:middle;"></span> place (input on)</span>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-title">Laps</div>
+    <div class="ctrl-row">
+      <label class="tog"><input type="checkbox" id="use_laps"><span class="tog-track"></span></label>
+      <span class="lbl" style="min-width:auto; margin-left:12px">t_pause</span>
+      <input type="range" id="t_pause" min="0" max="10" step="0.5" value="5" style="min-width:50px">
+      <span class="sval" id="t_pause_val">5.0</span>
     </div>
   </div>
 
@@ -243,6 +256,7 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
 
 <script id="worker-src" type="text/plain">
 function fft(re, im) {
@@ -331,12 +345,15 @@ let G_EA, G_IA, G_EB, G_IB;
 let a_EA, a_EB, g_adapt_A, g_adapt_B;
 let pulseBlob, pulseBlob2;
 let pulsePos = 0.5;
+let trajectoryVel = null;   // signed velocity (ring-fractions/s) per trajectory step
 let pulse2Phase = 0.25, usePulse2 = false;
 let resetElapsed = 0;
 let simTime = 0;
 let mIntLast = 1, mPlaceLast = 0;
 let cosTab = null, sinTab = null;
 let running = false, pendingParams = null, paramsDirty = false;
+let trajectory = null, simStep = 0, animalPos = -1;
+let recording = false, recSpkN = [], recSpkT = [], recPosT = [], recPosX = [], recStartTime = 0, recN = 0;
 
 const dt = 0.5 / 1000;
 const tau_s = 30 / 1000;
@@ -531,6 +548,26 @@ function applyParams(p) {
   initWeights(p);
   if (resize || r_EA === null) allocBuffers(N);
   else { buildPulseBlob(); if (usePulse2) buildPulseBlob2(); }
+  if (p.laps && p.velocity !== 0 && D === 1) {
+    const stepsRun   = Math.max(1, Math.round(1 / Math.abs(p.velocity) / dt));
+    const stepsPause = Math.max(0, Math.round(p.t_pause / dt));
+    const period = 2 * stepsRun + 2 * stepsPause;
+    trajectory = new Float64Array(period);
+    for (let i = 0; i < stepsRun;   i++) trajectory[i]                           = i / stepsRun;
+    for (let i = 0; i < stepsPause; i++) trajectory[stepsRun + i]                = 1;
+    for (let i = 0; i < stepsRun;   i++) trajectory[stepsRun + stepsPause + i]   = 1 - i / stepsRun;
+    for (let i = 0; i < stepsPause; i++) trajectory[2*stepsRun + stepsPause + i] = 0;
+    trajectoryVel = new Float64Array(period);
+    const spd = Math.abs(p.velocity);
+    for (let i = 0; i < stepsRun;   i++) trajectoryVel[i]                          =  spd;
+    for (let i = 0; i < stepsPause; i++) trajectoryVel[stepsRun + i]               =  0;
+    for (let i = 0; i < stepsRun;   i++) trajectoryVel[stepsRun + stepsPause + i]  = -spd;
+    for (let i = 0; i < stepsPause; i++) trajectoryVel[2*stepsRun + stepsPause + i]=  0;
+  } else {
+    trajectory = null;
+    trajectoryVel = null;
+    animalPos = -1;
+  }
 }
 
 function circConvInto(sig, kRe, kIm, out) {
@@ -589,6 +626,7 @@ function tick() {
   const adaptOn = params.adapt, wa = params.w_a, tauA = params.tau_a;
   const resetOn = params.reset, tReset = params.t_reset;
   const velocity = params.velocity || 0;
+  let instVel = velocity;
   const conv = D === 2 ? circConvInto2D : circConvInto;
   const baseSteps = D === 2 ? STEPS_2D : STEPS_PER_TICK;
   const steps = Math.max(1, Math.round(baseSteps * (params.speed || 1)));
@@ -601,7 +639,14 @@ function tick() {
     //   m_place = 1 inside the place  window (gates the feedforward place input), else 0
     // Continuous animal position: advances every step (smooth trajectory),
     // independent of the cycle. Flat at the middle when velocity = 0.
-    pulsePos = ((pulsePos + velocity * dt) % 1 + 1) % 1;
+    if (trajectory) {
+      const tidx = (simStep + s) % trajectory.length;
+      pulsePos = trajectory[tidx];
+      instVel  = trajectoryVel[tidx];
+    } else {
+      pulsePos = ((pulsePos + velocity * dt) % 1 + 1) % 1;
+      instVel  = velocity;
+    }
     let mInt = 1, mPlace = 0;
     if (resetOn) {
       resetElapsed += dt;
@@ -640,8 +685,8 @@ function tick() {
     const bE = params.beta_E, bI = params.beta_I;
     // Velocity gain applies only to the place input.
     const betaVel = params.beta_vel || 0;
-    const gainA = Math.max(0, 1 + betaVel * velocity);
-    const gainB = Math.max(0, 1 - betaVel * velocity);
+    const gainA = Math.max(0, 1 + betaVel * instVel);
+    const gainB = Math.max(0, 1 - betaVel * instVel);
     if (single) {
       // Ring A only (no cross terms, ring B frozen)
       for (let i = 0; i < N; i++) {
@@ -656,6 +701,7 @@ function tick() {
         r_EA[i] += sEA - r_EA[i]*dt/tau_s;
         r_IA[i] += sIA - r_IA[i]*dt/tau_s;
         if (adaptOn) a_EA[i] += sEA - a_EA[i]*dt/tauA;
+        if (recording && sp) { for (let k = 0; k < sEA; k++) { recSpkN.push(i); recSpkT.push(simTime); } }
       }
     } else {
       for (let i = 0; i < N; i++) {
@@ -681,8 +727,13 @@ function tick() {
           a_EA[i] += sEA - a_EA[i]*dt/tauA;
           a_EB[i] += sEB - a_EB[i]*dt/tauA;
         }
+        if (recording && sp) {
+          for (let k = 0; k < sEA; k++) { recSpkN.push(i);   recSpkT.push(simTime); }
+          for (let k = 0; k < sEB; k++) { recSpkN.push(N+i); recSpkT.push(simTime); }
+        }
       }
     }
+    if (recording && s % 10 === 0) { recPosT.push(simTime); recPosX.push(pulsePos); }
     if (comSamples) {
       const ca = params.track ? circCoM1D(r_EA) : null;                 // skip bump-CoM compute when dots hidden
       const cb = (params.track && !single) ? circCoM1D(r_EB) : null;
@@ -703,9 +754,13 @@ function tick() {
   }
   if (!ok) allocBuffers(N);
 
+  simStep += steps;
+  animalPos = trajectory ? trajectory[simStep % trajectory.length] * (N - 1) : -1;
+
   const pack = D === 2 ? (a => new Float32Array(a)) : (a => Array.from(a));
   const msg = {
     type: 'update', n: N, dims: D, L: L, t: simTime,
+    animalPos: animalPos, laps: !!params.laps,
     r_EA: pack(r_EA), r_IA: pack(r_IA),
     r_EB: pack(r_EB), r_IB: pack(r_IB),
     w_EE: pack(wFT.EE.vec), w_IE: pack(wFT.IE.vec),
@@ -717,7 +772,7 @@ function tick() {
   };
   if (D < 2) {
     const _bv = params.beta_vel || 0;
-    const _gA = Math.max(0, 1 + _bv * velocity), _gB = Math.max(0, 1 - _bv * velocity);
+    const _gA = Math.max(0, 1 + _bv * instVel), _gB = Math.max(0, 1 - _bv * instVel);
     msg.gainA = _gA; msg.gainB = _gB;
     msg.g_EE_A = pack(g_EE_A); msg.g_IE_A = pack(g_IE_A);
     msg.g_EI_A = pack(g_EI_A); msg.g_II_A = pack(g_II_A);
@@ -748,12 +803,23 @@ self.onmessage = function(e) {
   if (d.type === 'start') {
     pendingParams = d.params; paramsDirty = true;
     r_EA = null;
+    simStep = 0; animalPos = -1;
+    recording = false; recSpkN = []; recSpkT = []; recPosT = []; recPosX = [];
     running = true;
     tick();
   } else if (d.type === 'stop') {
     running = false;
   } else if (d.type === 'params') {
     pendingParams = d.params; paramsDirty = true;
+  } else if (d.type === 'record_start') {
+    recSpkN = []; recSpkT = []; recPosT = []; recPosX = [];
+    recStartTime = simTime; recN = N; recording = true;
+  } else if (d.type === 'record_stop') {
+    recording = false;
+    const spkN = new Uint16Array(recSpkN), spkT = new Float64Array(recSpkT);
+    const posT = new Float64Array(recPosT), posX = new Float32Array(recPosX);
+    self.postMessage({ type: 'record_data', spkN, spkT, posT, posX, N: recN, t_start: recStartTime, t_end: simTime, dt, params }, [spkN.buffer, spkT.buffer, posT.buffer, posX.buffer]);
+    recSpkN = []; recSpkT = []; recPosT = []; recPosX = [];
   }
 };
 </script>
@@ -921,6 +987,28 @@ const lineLegendPlugin = {
   }
 };
 
+let currentAnimalPos = -1;
+const animalPosPlugin = {
+  id: 'animalPos',
+  afterDraw(chart) {
+    if (currentAnimalPos < 0) return;
+    if (chart.canvas.id !== 'c2_A' && chart.canvas.id !== 'c2_B') return;
+    const { ctx, chartArea, scales } = chart;
+    const xVal = currentAnimalPos + 1;
+    if (xVal < scales.x.min || xVal > scales.x.max) return;
+    const x = scales.x.getPixelForValue(xVal);
+    ctx.save();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
 let stackYW = 0;
 function mkChart(id, title, datasets, xlabel) {
   return new Chart(document.getElementById(id).getContext('2d'), {
@@ -951,7 +1039,7 @@ function mkChart(id, title, datasets, xlabel) {
         }
       }
     },
-    plugins: [lineLegendPlugin],
+    plugins: [lineLegendPlugin, animalPosPlugin],
   });
 }
 
@@ -1274,13 +1362,108 @@ function updateCharts(d) {
   updateComChart(d);
 }
 
+// ── NPZ export ────────────────────────────────────────────────────────
+function makeNpy(dtype, shape, typedArray) {
+  const MAGIC = new Uint8Array([0x93,0x4e,0x55,0x4d,0x50,0x59,0x01,0x00]);
+  const shapeStr = shape.length === 0 ? '()' : shape.length === 1 ? `(${shape[0]},)` : `(${shape.join(', ')})`;
+  const dictStr = `{'descr': '${dtype}', 'fortran_order': False, 'shape': ${shapeStr}, }`;
+  const dictBytes = new TextEncoder().encode(dictStr);
+  let headerLen = dictBytes.length + 1;
+  const rem = (10 + headerLen) % 64;
+  if (rem !== 0) headerLen += 64 - rem;
+  const buf = new Uint8Array(10 + headerLen + typedArray.byteLength);
+  buf.set(MAGIC, 0);
+  buf[8] = headerLen & 0xff; buf[9] = (headerLen >> 8) & 0xff;
+  buf.set(dictBytes, 10);
+  buf.fill(0x20, 10 + dictBytes.length, 10 + headerLen - 1);
+  buf[10 + headerLen - 1] = 0x0a;
+  buf.set(new Uint8Array(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength), 10 + headerLen);
+  return buf;
+}
+
+async function downloadRecording(d) {
+  const N = d.N, p = d.params;
+  const spkN = d.spkN, spkT = d.spkT, posT = d.posT, posX = d.posX;
+  const M = spkT.length, T = posT.length;
+
+  // spike_times: (M, 2) float64 — [neuron_idx, spike_time]
+  const spkArr = new Float64Array(M * 2);
+  for (let k = 0; k < M; k++) { spkArr[k*2] = spkN[k]; spkArr[k*2+1] = spkT[k]; }
+
+  // rate_map: (2N, 2N) float32 — Ring A Gaussian in dir-1 block, Ring B in dir-2
+  const sig = N * (p.pulse_sig_frac || 0.055);
+  const amp = p.pulse_amp || 490;
+  const rmArr = new Float32Array(4*N*N);
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      let dd = j - i; if (dd > N/2) dd -= N; if (dd < -N/2) dd += N;
+      const v = amp * Math.exp(-0.5*(dd/sig)*(dd/sig));
+      rmArr[i*(2*N) + j] = v;           // Ring A, dir-1 block
+      rmArr[(N+i)*(2*N) + (N+j)] = v;   // Ring B, dir-2 block
+    }
+  }
+
+  // positions_linearized: (T, 4) float64 — [time, pos_neuron, 0, speed]
+  const posArr = new Float64Array(T * 4);
+  for (let t = 0; t < T; t++) {
+    const pos = posX[t] * (N - 1);
+    const dtp = t > 0 ? posT[t] - posT[t-1] : (T > 1 ? posT[1] - posT[0] : 0.01);
+    const spd = t > 0 ? Math.abs((posX[t] - posX[t-1]) * (N-1) / dtp) : 0;
+    posArr[t*4]=posT[t]; posArr[t*4+1]=pos; posArr[t*4+2]=0; posArr[t*4+3]=spd;
+  }
+
+  // theta_phase: (T, 2) float64 — [time, phase]
+  const tArr = new Float64Array(T * 2);
+  const fTheta = (p.t_reset > 0) ? 1.0 / p.t_reset : 0;
+  const TWO_PI = 2 * Math.PI;
+  for (let t = 0; t < T; t++) {
+    tArr[t*2] = posT[t];
+    tArr[t*2+1] = ((TWO_PI * (posT[t] - d.t_start) * fTheta) % TWO_PI + TWO_PI) % TWO_PI;
+  }
+
+  const s64 = v => makeNpy('<f8', [1], new Float64Array([v]));
+  const files = {
+    'spike_times.npy':           makeNpy('<f8', [M, 2],    spkArr),
+    'rate_map.npy':              makeNpy('<f4', [2*N, 2*N], rmArr),
+    'positions_linearized.npy':  makeNpy('<f8', [T, 4],    posArr),
+    'theta_phase.npy':           makeNpy('<f8', [T, 2],    tArr),
+    't_start.npy':    s64(d.t_start),
+    't_stop.npy':     s64(d.t_end),
+    'n_neurons.npy':  s64(N),
+    'dt.npy':         s64(d.dt),
+    't_reset.npy':    s64(p.t_reset || 0),
+    'velocity.npy':   s64(p.velocity || 0),
+  };
+
+  const zipped = fflate.zipSync(files);
+  const blob = new Blob([zipped], { type: 'application/octet-stream' });
+
+  if (window.showSaveFilePicker) {
+    try {
+      const fh = await window.showSaveFilePicker({
+        suggestedName: 'attractor_recording.npz',
+        types: [{ description: 'NumPy archive', accept: { 'application/octet-stream': ['.npz'] } }]
+      });
+      const w = await fh.createWritable(); await w.write(blob); await w.close();
+      recStatus.style.color = '#3fb950'; recStatus.textContent = `Saved (${M} spikes, ${T} pos samples)`;
+      return;
+    } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'attractor_recording.npz'; a.click();
+  URL.revokeObjectURL(url);
+  recStatus.style.color = '#3fb950'; recStatus.textContent = `Saved (${M} spikes, ${T} pos samples)`;
+}
+
 // ── Worker ────────────────────────────────────────────────────────────
 const src = document.getElementById('worker-src').textContent;
 const worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'application/javascript' })));
 let pendingUpdate = null;
 worker.onmessage = e => {
+  if (e.data.type === 'record_data') { downloadRecording(e.data); return; }
   if (e.data.type !== 'update') return;
   pendingUpdate = e.data;
+  currentAnimalPos = (e.data.laps && e.data.animalPos >= 0) ? e.data.animalPos : -1;
   const cs = e.data.comSamples;
   if (cs) for (const s of cs) {
     if (s.a !== null && s.ra >= comConc && s.ma >= comRate) comHistA.push({ t: s.t, y: s.a });
@@ -1314,8 +1497,10 @@ function getParams() {
     pulse2_phase:   +document.getElementById('pulse2_phase').value,
     sil_on: resetWin.sil.on, sil_off: resetWin.sil.off, sil_active: true,
     plc_on: resetWin.plc.on, plc_off: resetWin.plc.off,
-    velocity:       +document.getElementById('pulse_vel').value,
+    velocity:       (document.getElementById('dir_toggle').dataset.dir === 'fwd' ? 1 : -1) * +document.getElementById('pulse_spd').value / 100,
     beta_vel:       +document.getElementById('beta_vel').value,
+    laps:           document.getElementById('use_laps').checked,
+    t_pause:        +document.getElementById('t_pause').value,
   };
   for (const r of WT_ROWS) {
     p['sig_'+r.id] = sliderToSig(+document.getElementById('sig_'+r.id).value);
@@ -1350,6 +1535,34 @@ document.getElementById('startstop').addEventListener('click', () => {
   } else {
     simRunning = false; btn.textContent = 'Start'; btn.className = 'stopped';
     worker.postMessage({ type: 'stop' });
+    if (isRecording) {
+      isRecording = false;
+      const rb = document.getElementById('record_btn');
+      rb.textContent = '● Rec'; rb.style.cssText = 'width:100%;padding:6px 0;border:1px solid #30363d;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#21262d;color:#8b949e;margin-top:4px;';
+    }
+  }
+});
+
+// ── Record ────────────────────────────────────────────────────────────
+let isRecording = false;
+const recStatus = document.getElementById('rec_status');
+let recSpikeCount = 0;
+document.getElementById('record_btn').addEventListener('click', () => {
+  const rb = document.getElementById('record_btn');
+  if (!simRunning) { recStatus.textContent = 'Start simulation first'; recStatus.style.color = '#e3b341'; return; }
+  if (!isRecording) {
+    if (!getParams().spiking) { recStatus.textContent = 'Enable Spiking first'; recStatus.style.color = '#e3b341'; return; }
+    isRecording = true; recSpikeCount = 0;
+    rb.textContent = '■ Stop & Export';
+    rb.style.cssText = 'width:100%;padding:6px 0;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#b91c1c;color:#fecaca;margin-top:4px;';
+    recStatus.style.color = '#3fb950'; recStatus.textContent = 'Recording…';
+    worker.postMessage({ type: 'record_start' });
+  } else {
+    isRecording = false;
+    rb.textContent = '● Rec';
+    rb.style.cssText = 'width:100%;padding:6px 0;border:1px solid #30363d;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;background:#21262d;color:#8b949e;margin-top:4px;';
+    recStatus.style.color = '#6e7681'; recStatus.textContent = 'Exporting…';
+    worker.postMessage({ type: 'record_stop' });
   }
 });
 
@@ -1426,7 +1639,16 @@ document.getElementById('pulse_sig').addEventListener('input', e => { document.g
 document.getElementById('pulse_amp').addEventListener('input', e => { document.getElementById('pulse_amp_val').textContent = e.target.value; sendParams(); });
 document.getElementById('use_pulse2').addEventListener('change', sendParams);
 document.getElementById('pulse2_phase').addEventListener('input', e => { document.getElementById('pulse2_phase_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
-document.getElementById('pulse_vel').addEventListener('input', e => { document.getElementById('pulse_vel_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
+document.getElementById('pulse_spd').addEventListener('input', e => { document.getElementById('pulse_spd_val').textContent = (+e.target.value).toFixed(1); sendParams(); });
+document.getElementById('dir_toggle').addEventListener('click', () => {
+  const btn = document.getElementById('dir_toggle');
+  const fwd = btn.dataset.dir !== 'fwd';
+  btn.dataset.dir = fwd ? 'fwd' : 'bwd';
+  btn.textContent = fwd ? '→ Fwd' : '← Bwd';
+  sendParams();
+});
+document.getElementById('use_laps').addEventListener('change', () => { if (!document.getElementById('use_laps').checked) { currentAnimalPos = -1; } sendParams(); });
+document.getElementById('t_pause').addEventListener('input', e => { document.getElementById('t_pause_val').textContent = (+e.target.value).toFixed(1); sendParams(); });
 
 for (const r of [...WT_ROWS, ...WT_CROSS_ROWS]) {
   document.getElementById('sig_'+r.id).addEventListener('input', e => { document.getElementById('sig_'+r.id+'_v').textContent = fmtSig(sliderToSig(+e.target.value)); sendParams(); });
@@ -1513,7 +1735,13 @@ function loadPreset(p) {
   }
   drawResetWin();
   const vel = p.velocity != null ? p.velocity : 0;
-  document.getElementById('pulse_vel').value = vel; document.getElementById('pulse_vel_val').textContent = (+vel).toFixed(2);
+  const spdCm = Math.abs(vel * 100);
+  const dir = vel >= 0 ? 'fwd' : 'bwd';
+  document.getElementById('pulse_spd').value = spdCm;
+  document.getElementById('pulse_spd_val').textContent = spdCm.toFixed(1);
+  const dirBtn = document.getElementById('dir_toggle');
+  dirBtn.dataset.dir = dir;
+  dirBtn.textContent = dir === 'fwd' ? '→ Fwd' : '← Bwd';
   const bvel = p.beta_vel != null ? p.beta_vel : 0;
   document.getElementById('beta_vel').value = bvel; document.getElementById('beta_vel_val').textContent = (+bvel).toFixed(2);
   for (const r of WT_ROWS) {
@@ -1537,6 +1765,9 @@ function loadPreset(p) {
     document.getElementById('inv_'+r.id).checked = !!p['inv_'+r.id];
     document.getElementById('bin_'+r.id).checked = !!p['bin_'+r.id];
   }
+  document.getElementById('use_laps').checked = !!p.laps;
+  const tp = p.t_pause != null ? p.t_pause : 5;
+  document.getElementById('t_pause').value = tp; document.getElementById('t_pause_val').textContent = (+tp).toFixed(1);
   setRings(p.rings === 1 ? 1 : 2);
   setDim(p.dims === 2 ? 2 : 1);
 }
@@ -1569,6 +1800,8 @@ document.getElementById('presets_title').addEventListener('click', () => {
   else { localStorage.removeItem(GH_TOKEN_KEY); setPresetStatus('Token cleared.'); }
 });
 
+const BUNDLED_PRESETS = {"theta cycling":{"speed":0.01,"n":256,"dims":1,"spiking":true,"beta_E":432,"beta_I":0,"adapt":true,"w_a":2.8,"tau_a":3.4,"reset":true,"t_reset":1,"pulse_sig_frac":0.055,"pulse_amp":490,"pulse_dur":0.0772,"silence_dur":0.1,"velocity":0.09,"beta_vel":10,"sig_EE":0.040179081084894,"amp_EE":8,"inv_EE":false,"bin_EE":false,"sig_IE":8.709635899560807,"amp_IE":27,"inv_IE":false,"bin_IE":false,"sig_EI":10,"amp_EI":-8,"inv_EI":false,"bin_EI":false,"sig_II":10,"amp_II":-36,"inv_II":false,"bin_II":false,"sig_cEE":0.040179081084894,"amp_cEE":11,"inv_cEE":false,"bin_cEE":false,"sig_cIE":0.040179081084894,"amp_cIE":0,"inv_cIE":false,"bin_cIE":false,"sig_cEI":0.040179081084894,"amp_cEI":-18,"inv_cEI":true,"bin_cEI":false,"sig_cII":0.040179081084894,"amp_cII":0,"inv_cII":true,"bin_cII":false},"E bump (no I bump)":{"speed":1,"n":256,"dims":1,"spiking":true,"beta_E":432,"beta_I":0,"adapt":false,"w_a":2.8,"tau_a":3.4,"reset":false,"t_reset":1.3,"pulse_sig_frac":0.055,"pulse_amp":490,"pulse_dur":0.1466,"silence_dur":0.1,"velocity":0.025,"beta_vel":10,"sig_EE":0.040179081084894,"amp_EE":8,"inv_EE":false,"bin_EE":false,"sig_IE":8.709635899560807,"amp_IE":27,"inv_IE":false,"bin_IE":false,"sig_EI":10,"amp_EI":-8,"inv_EI":false,"bin_EI":false,"sig_II":10,"amp_II":-36,"inv_II":false,"bin_II":false,"sig_cEE":0.040179081084894,"amp_cEE":0,"inv_cEE":false,"bin_cEE":false,"sig_cIE":0.040179081084894,"amp_cIE":0,"inv_cIE":false,"bin_cIE":false,"sig_cEI":0.040179081084894,"amp_cEI":0,"inv_cEI":true,"bin_cEI":false,"sig_cII":0.040179081084894,"amp_cII":0,"inv_cII":true,"bin_cII":false},"theta cycling II":{"speed":0.05,"n":256,"dims":1,"spiking":false,"beta_E":432,"beta_I":0,"adapt":true,"w_a":2.8,"tau_a":3.4,"reset":true,"t_reset":0.8,"pulse_sig_frac":0.03,"pulse_amp":490,"pulse_dur":0.08,"silence_dur":0.1,"velocity":-0.075,"beta_vel":10,"sig_EE":0.040179081084894,"amp_EE":6,"inv_EE":false,"bin_EE":false,"sig_IE":8.709635899560807,"amp_IE":27,"inv_IE":false,"bin_IE":false,"sig_EI":10,"amp_EI":-8,"inv_EI":false,"bin_EI":false,"sig_II":10,"amp_II":-36,"inv_II":false,"bin_II":false,"sig_cEE":0.040179081084894,"amp_cEE":11,"inv_cEE":false,"bin_cEE":false,"sig_cIE":0.040179081084894,"amp_cIE":0,"inv_cIE":false,"bin_cIE":false,"sig_cEI":0.040179081084894,"amp_cEI":-20,"inv_cEI":true,"bin_cEI":false,"sig_cII":0.040179081084894,"amp_cII":0,"inv_cII":true,"bin_cII":false},"theta cycling III":{"speed":0.06,"n":256,"dims":1,"spiking":false,"beta_E":432,"beta_I":0,"adapt":true,"w_a":4.7,"tau_a":3.4,"reset":true,"t_reset":0.3,"pulse_sig_frac":0.03,"pulse_amp":800,"pulse_dur":0.07,"silence_dur":0.04,"velocity":-0.06,"beta_vel":1.5,"sig_EE":0.040179081084894,"amp_EE":6,"inv_EE":false,"bin_EE":false,"sig_IE":8.709635899560807,"amp_IE":27,"inv_IE":false,"bin_IE":false,"sig_EI":10,"amp_EI":-8,"inv_EI":false,"bin_EI":false,"sig_II":10,"amp_II":-36,"inv_II":false,"bin_II":false,"sig_cEE":0.040179081084894,"amp_cEE":11,"inv_cEE":false,"bin_cEE":false,"sig_cIE":0.040179081084894,"amp_cIE":0,"inv_cIE":false,"bin_cIE":false,"sig_cEI":0.040179081084894,"amp_cEI":-20,"inv_cEI":true,"bin_cEI":false,"sig_cII":0.040179081084894,"amp_cII":0,"inv_cII":true,"bin_cII":false}};
+for (const k of Object.keys(BUNDLED_PRESETS)) { if (!(k in presets)) presets[k] = BUNDLED_PRESETS[k]; }
 restorePresets(); renderPresets();
 if (getToken()) setPresetStatus('Committing enabled.');
 loadSharedPresets().then(shared => { if (getToken() && hasUnpublished(shared)) commitPresets(); });
