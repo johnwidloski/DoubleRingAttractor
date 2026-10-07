@@ -183,6 +183,16 @@ input[type=text]#preset_name:focus { border-color: #58a6ff; }
   </div>
 
   <div>
+    <div class="sec-title">Laps</div>
+    <div class="ctrl-row">
+      <label class="tog"><input type="checkbox" id="use_laps"><span class="tog-track"></span></label>
+      <span class="lbl" style="min-width:auto; margin-left:12px">t_pause</span>
+      <input type="range" id="t_pause" min="0" max="10" step="0.5" value="5" style="min-width:50px">
+      <span class="sval" id="t_pause_val">5.0</span>
+    </div>
+  </div>
+
+  <div>
     <div class="sec-title" style="display:flex; align-items:center; gap:8px;">Tracking
       <label class="tog"><input type="checkbox" id="show_com" checked><span class="tog-track"></span></label>
     </div>
@@ -337,6 +347,7 @@ let simTime = 0;
 let mIntLast = 1, mPlaceLast = 0;
 let cosTab = null, sinTab = null;
 let running = false, pendingParams = null, paramsDirty = false;
+let trajectory = null, simStep = 0, animalPos = -1;
 
 const dt = 0.5 / 1000;
 const tau_s = 30 / 1000;
@@ -531,6 +542,19 @@ function applyParams(p) {
   initWeights(p);
   if (resize || r_EA === null) allocBuffers(N);
   else { buildPulseBlob(); if (usePulse2) buildPulseBlob2(); }
+  if (p.laps && p.velocity !== 0 && D === 1) {
+    const stepsRun   = Math.max(1, Math.round(1 / Math.abs(p.velocity) / dt));
+    const stepsPause = Math.max(0, Math.round(p.t_pause / dt));
+    const period = 2 * stepsRun + 2 * stepsPause;
+    trajectory = new Float64Array(period);
+    for (let i = 0; i < stepsRun;   i++) trajectory[i]                           = i / stepsRun;
+    for (let i = 0; i < stepsPause; i++) trajectory[stepsRun + i]                = 1;
+    for (let i = 0; i < stepsRun;   i++) trajectory[stepsRun + stepsPause + i]   = 1 - i / stepsRun;
+    for (let i = 0; i < stepsPause; i++) trajectory[2*stepsRun + stepsPause + i] = 0;
+  } else {
+    trajectory = null;
+    animalPos = -1;
+  }
 }
 
 function circConvInto(sig, kRe, kIm, out) {
@@ -601,7 +625,11 @@ function tick() {
     //   m_place = 1 inside the place  window (gates the feedforward place input), else 0
     // Continuous animal position: advances every step (smooth trajectory),
     // independent of the cycle. Flat at the middle when velocity = 0.
-    pulsePos = ((pulsePos + velocity * dt) % 1 + 1) % 1;
+    if (trajectory) {
+      pulsePos = trajectory[(simStep + s) % trajectory.length];
+    } else {
+      pulsePos = ((pulsePos + velocity * dt) % 1 + 1) % 1;
+    }
     let mInt = 1, mPlace = 0;
     if (resetOn) {
       resetElapsed += dt;
@@ -703,9 +731,13 @@ function tick() {
   }
   if (!ok) allocBuffers(N);
 
+  simStep += steps;
+  animalPos = trajectory ? trajectory[simStep % trajectory.length] * (N - 1) : -1;
+
   const pack = D === 2 ? (a => new Float32Array(a)) : (a => Array.from(a));
   const msg = {
     type: 'update', n: N, dims: D, L: L, t: simTime,
+    animalPos: animalPos, laps: !!params.laps,
     r_EA: pack(r_EA), r_IA: pack(r_IA),
     r_EB: pack(r_EB), r_IB: pack(r_IB),
     w_EE: pack(wFT.EE.vec), w_IE: pack(wFT.IE.vec),
@@ -748,6 +780,7 @@ self.onmessage = function(e) {
   if (d.type === 'start') {
     pendingParams = d.params; paramsDirty = true;
     r_EA = null;
+    simStep = 0; animalPos = -1;
     running = true;
     tick();
   } else if (d.type === 'stop') {
@@ -921,6 +954,28 @@ const lineLegendPlugin = {
   }
 };
 
+let currentAnimalPos = -1;
+const animalPosPlugin = {
+  id: 'animalPos',
+  afterDraw(chart) {
+    if (currentAnimalPos < 0) return;
+    if (chart.canvas.id !== 'c2_A' && chart.canvas.id !== 'c2_B') return;
+    const { ctx, chartArea, scales } = chart;
+    const xVal = currentAnimalPos + 1;
+    if (xVal < scales.x.min || xVal > scales.x.max) return;
+    const x = scales.x.getPixelForValue(xVal);
+    ctx.save();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
 let stackYW = 0;
 function mkChart(id, title, datasets, xlabel) {
   return new Chart(document.getElementById(id).getContext('2d'), {
@@ -951,7 +1006,7 @@ function mkChart(id, title, datasets, xlabel) {
         }
       }
     },
-    plugins: [lineLegendPlugin],
+    plugins: [lineLegendPlugin, animalPosPlugin],
   });
 }
 
@@ -1281,6 +1336,7 @@ let pendingUpdate = null;
 worker.onmessage = e => {
   if (e.data.type !== 'update') return;
   pendingUpdate = e.data;
+  currentAnimalPos = (e.data.laps && e.data.animalPos >= 0) ? e.data.animalPos : -1;
   const cs = e.data.comSamples;
   if (cs) for (const s of cs) {
     if (s.a !== null && s.ra >= comConc && s.ma >= comRate) comHistA.push({ t: s.t, y: s.a });
@@ -1316,6 +1372,8 @@ function getParams() {
     plc_on: resetWin.plc.on, plc_off: resetWin.plc.off,
     velocity:       +document.getElementById('pulse_vel').value,
     beta_vel:       +document.getElementById('beta_vel').value,
+    laps:           document.getElementById('use_laps').checked,
+    t_pause:        +document.getElementById('t_pause').value,
   };
   for (const r of WT_ROWS) {
     p['sig_'+r.id] = sliderToSig(+document.getElementById('sig_'+r.id).value);
@@ -1427,6 +1485,8 @@ document.getElementById('pulse_amp').addEventListener('input', e => { document.g
 document.getElementById('use_pulse2').addEventListener('change', sendParams);
 document.getElementById('pulse2_phase').addEventListener('input', e => { document.getElementById('pulse2_phase_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
 document.getElementById('pulse_vel').addEventListener('input', e => { document.getElementById('pulse_vel_val').textContent = (+e.target.value).toFixed(2); sendParams(); });
+document.getElementById('use_laps').addEventListener('change', () => { if (!document.getElementById('use_laps').checked) { currentAnimalPos = -1; } sendParams(); });
+document.getElementById('t_pause').addEventListener('input', e => { document.getElementById('t_pause_val').textContent = (+e.target.value).toFixed(1); sendParams(); });
 
 for (const r of [...WT_ROWS, ...WT_CROSS_ROWS]) {
   document.getElementById('sig_'+r.id).addEventListener('input', e => { document.getElementById('sig_'+r.id+'_v').textContent = fmtSig(sliderToSig(+e.target.value)); sendParams(); });
@@ -1537,6 +1597,9 @@ function loadPreset(p) {
     document.getElementById('inv_'+r.id).checked = !!p['inv_'+r.id];
     document.getElementById('bin_'+r.id).checked = !!p['bin_'+r.id];
   }
+  document.getElementById('use_laps').checked = !!p.laps;
+  const tp = p.t_pause != null ? p.t_pause : 5;
+  document.getElementById('t_pause').value = tp; document.getElementById('t_pause_val').textContent = (+tp).toFixed(1);
   setRings(p.rings === 1 ? 1 : 2);
   setDim(p.dims === 2 ? 2 : 1);
 }
